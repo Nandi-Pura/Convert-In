@@ -6,13 +6,18 @@ from app.core.models import Vendor
 from app.core.versions.models import VersionContext
 
 class CompatibilityStatus(StrEnum):
-    EXACT="EXACT"; SUPPORTED="SUPPORTED"; PARTIAL="PARTIAL"; MANUAL_REVIEW="MANUAL_REVIEW"; UNSUPPORTED="UNSUPPORTED"
+    EXACT="EXACT"; SUPPORTED="SUPPORTED"; PARTIAL="PARTIAL"; MANUAL_REVIEW="MANUAL_REVIEW"; UNSUPPORTED="UNSUPPORTED"; VERSION_NOT_VERIFIED="VERSION_NOT_VERIFIED"
 
 class CompatibilityResult(BaseModel):
     entity_id:str; entity_type:str; source_name:str; status:CompatibilityStatus
     reasons:list[str]=Field(default_factory=list); required_mappings:list[str]=Field(default_factory=list); source_context:str|None=None
     topology:dict[str,Any]=Field(default_factory=dict)
     source_version:str|None=None; target_version:str|None=None; capability_refs:list[str]=Field(default_factory=list); documentation_refs:list[str]=Field(default_factory=list); version_status:str="VERSION_NOT_VERIFIED"
+    decision_id:str=""; source_semantic:dict[str,Any]=Field(default_factory=dict); target_semantic:dict[str,Any]=Field(default_factory=dict)
+    preserved_semantics:list[str]=Field(default_factory=list); lost_semantics:list[str]=Field(default_factory=list); required_context:list[str]=Field(default_factory=list)
+    source_evidence_refs:list[str]=Field(default_factory=list); target_evidence_refs:list[str]=Field(default_factory=list)
+    renderer_capability_id:str|None=None; renderer_support:bool=False; test_refs:list[str]=Field(default_factory=list)
+    blocking:bool=True; related_cp1_findings:list[str]=Field(default_factory=list)
 
 class InterfaceMapping(BaseModel):
     source_interface:str; source_nameif:str|None=None; target_interface:str|None=None; target_zone:str|None=None; suggested_zone:str|None=None; confirmed:bool=False
@@ -118,7 +123,7 @@ class CategoryCounts(BaseModel):
 
 class MigrationReport(BaseModel):
     source_vendor:Vendor; target_vendor:Vendor; generated_at:str=Field(default_factory=lambda:datetime.now(timezone.utc).isoformat())
-    total_entities:int; exact:int; supported:int; partial:int; manual_review:int; unsupported:int
+    total_entities:int; exact:int; supported:int; partial:int; manual_review:int; unsupported:int; version_not_verified:int=0
     categories:CategoryCounts; warnings:list[str]=Field(default_factory=list); errors:list[str]=Field(default_factory=list)
     required_mappings:list[str]=Field(default_factory=list); generated_entities:int=0; skipped_entities:int=0
     compatibility:list[CompatibilityResult]; names:list[NameMapping]

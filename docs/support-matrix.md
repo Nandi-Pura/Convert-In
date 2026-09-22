@@ -6,6 +6,17 @@ CP0 Source Extraction Coverage is supported for the bounded ASA and FortiGate pa
 
 CP1 Reference Integrity is supported for modeled Cisco ASA and FortiGate normalized entities. PAN-OS XML CP1 is not implemented in Q3. Unmodeled access-group, VPN, VDOM, and route-context dependencies remain explicit limitations rather than inferred semantics.
 
+CP2 Semantic Compatibility is version-profiled for ASA 9.20/9.22/9.24 and FortiOS 7.4/7.6 to PAN-OS 11.1 `LOCAL_FIREWALL`. Objects, services, simple security policies, and static routes are field-dependent. Interfaces, zones, VPN, NAT, missing context, behavioral loss, and unverified versions remain non-generated. PAN-OS 12.1 does not inherit PAN-OS 11.1 evidence.
+
+| Construct | Source parsing | CP1 | CP2 | PAN generation |
+|---|---|---|---|---|
+| Address/group | Bounded | Modeled references | Supported when type/member semantics evidenced | Bounded |
+| Service/group | Bounded | Modeled references | Supported for evidenced TCP/UDP destination ports | Bounded |
+| Security policy | Bounded | Addresses/services/zones | Field- and context-dependent | Bounded |
+| Static route | Bounded | Interface reference | Context-dependent | Bounded |
+| Interface/zone | Bounded | Membership | Manual mapping required | None |
+| NAT/VPN | Bounded | Modeled references | Manual review/unsupported/version not verified | None |
+
 Supported generation uses FortiOS 7.4/7.6 or Cisco ASA 9.20/9.22/9.24 as sources, normalized `FirewallConfig`, and PAN-OS 11.1 `LOCAL_FIREWALL` as the target. The generated subset is addresses, address groups, services, service groups, evidenced security policies, and evidenced static routes.
 
 NAT, ambiguous target context, ambiguous interface/zone mapping, advanced semantics, and unverified versions remain review or non-generated. PAN-OS 12.1, Panorama, live mutation, commit, and deployment remain blocked.

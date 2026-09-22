@@ -21,7 +21,7 @@ def test_basic_golden_and_no_silent_omission():
 def test_policy_order_disabled_logging_and_mapping():
     cfg=FirewallConfig(metadata={"source_vendor":Vendor.ASA},addresses=[Address(id="a",name="A",type="host",value="10.0.0.1")],services=[Service(id="s",name="S",protocol="tcp",destination_ports=["443"])],security_policies=[SecurityRule(id="r2",name="Second",position=2,source_zones=["inside"],destination_zones=["outside"],sources=["A"],destinations=["any"],services=["S"],action="deny",enabled=False,log_end=True),SecurityRule(id="r1",name="First",position=1,source_zones=["inside"],destination_zones=["outside"],action="allow")])
     lines,report=PaloAltoRenderer().render(MigrationPlanner().plan(cfg,mappings()))
-    assert not lines and report.manual_review==4
+    assert not lines and report.manual_review==2 and report.version_not_verified==2
 
 def test_negative_semantics_names_and_quoting():
     cfg=FirewallConfig(metadata={"source_vendor":Vendor.ASA},addresses=[Address(id="a",name="Web Server #1",type="host",value="10.0.0.1"),Address(id="b",name="Web Server @1",type="host",value="10.0.0.2")],services=[Service(id="bad",name="bad",protocol="icmp")],security_policies=[SecurityRule(id="r",name="unknown",position=1,source_zones=["inside"],destination_zones=["outside"],action="reject")])

@@ -13,7 +13,7 @@ Convert-In is a local firewall configuration analysis, visualization, and migrat
 
 Generated output requires engineer review. No deployment or device validation occurs.
 
-Convert-In uses three independent assurance checkpoints: [CP0 Source Extraction Coverage](docs/extraction-coverage.md) asks whether source constructs were understood; [CP1 Reference Integrity](docs/reference-integrity.md) validates normalized dependencies; CP2 Target Compatibility / Evidence controls safe target representation. None claims migration accuracy.
+Assurance pipeline: [CP0 Source Extraction Coverage](docs/extraction-coverage.md) → [CP1 Reference Integrity](docs/reference-integrity.md) → [CP2 Semantic Compatibility](docs/semantic-compatibility.md) → evidence-gated candidate renderer. Checkpoints remain independent. None claims migration accuracy.
 
 **Advanced Workbench** remains available for analysis, visualization, mapping, compatibility evidence, semantic review, application validation, optional PAN lab validation, and package export.
 
@@ -124,6 +124,7 @@ Analysis APIs:
 - `GET /api/projects/{project_id}/impact/{object_id}`
 - `GET /api/projects/{project_id}/objects/{object_id}/references`
 - `GET /api/projects/{project_id}/migration/compatibility`
+- `GET /api/projects/{project_id}/semantic-compatibility`
 - `GET|PUT /api/projects/{project_id}/migration/mappings`
 - `POST /api/projects/{project_id}/migration/plan`
 - `POST /api/projects/{project_id}/migration/render`

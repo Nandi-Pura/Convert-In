@@ -1,7 +1,7 @@
 import ipaddress
 from app.core.models import Severity, Vendor
 from app.core.analysis import AnalysisEngine
-from .compatibility import result
+from .compatibility import finalize, result
 from .mappings import confirmed_maps, normalize_names
 from .models import CompatibilityStatus as S, MigrationMappings, MigrationPlan, PlannedEntity
 from .registry import migration_pair
@@ -24,12 +24,14 @@ class MigrationPlanner:
             refs=list(dict.fromkeys((source_cap.documentation_refs if source_cap else [])+(target_cap.documentation_refs if target_cap else [])))
             version_status="VERIFIED" if emitted_capability_fully_evidenced(source_profile,target_profile,capability) else "VERSION_NOT_VERIFIED"
             if status in {S.EXACT,S.SUPPORTED,S.PARTIAL} and version_status!="VERIFIED":
-                status=S.MANUAL_REVIEW; data=None; reasons=(*reasons,"Source and target capability documentation/test evidence is incomplete for selected versions.")
+                status=S.VERSION_NOT_VERIFIED; data=None; reasons=(*reasons,"Selected source/target version lacks complete semantic, syntax, renderer, or test evidence.")
             item=result(entity,kind,status,*reasons,required=required,topology=topology)
             item.source_version=source_version.selected_version if source_version else None; item.target_version=target_version.selected_version if target_version else None
             item.capability_refs=[f"{source_profile.id}:{capability}" for _ in [0] if source_profile]+[f"{target_profile.id}:{capability}" for _ in [0] if target_profile]
-            item.documentation_refs=refs; item.version_status=version_status; compatibility.append(item)
-            if data is not None and status in {S.EXACT,S.SUPPORTED,S.PARTIAL}: generate.append(PlannedEntity(entity_id=entity.id,entity_type=kind,target_name=targets[entity.id],data=data))
+            item.documentation_refs=refs; item.version_status=version_status
+            finalize(item,entity,source_profile,target_profile,capability,mappings.management_mode.value,data)
+            compatibility.append(item)
+            if data is not None and status in {S.EXACT,S.SUPPORTED} and kind!="nat_policy": generate.append(PlannedEntity(entity_id=entity.id,entity_type=kind,target_name=targets[entity.id],data=data))
         for x in cfg.interfaces: add(x,"interface",S.MANUAL_REVIEW,None,"Source interfaces are mapping-only; no interface command generated.",required=[f"interface:{x.name}"] if x.name not in interface_maps else [])
         for x in cfg.zones: add(x,"zone",S.MANUAL_REVIEW,None,"Zone creation is not automatic; confirmed mappings are used by dependent rules.",required=[f"zone:{x.name}"] if x.name not in zone_maps else [])
         for x in cfg.addresses:
@@ -114,7 +116,11 @@ class MigrationPlanner:
             generate=[x for x in generate if x.entity_id not in blocked_ids]
             for item in compatibility:
                 if item.entity_id in blocked_ids:
-                    item.status=S.MANUAL_REVIEW; item.reasons.append("Reference integrity blocked generation.")
+                    item.status=S.MANUAL_REVIEW; item.blocking=True; item.reasons.append("Source semantics cannot be validated because CP1 reference integrity is blocked.")
+                    item.related_cp1_findings=[x.finding_id for x in reference_integrity.findings if x.source_entity_id==item.entity_id and x.blocking]
+                    capability=item.renderer_capability_id or ""
+                    basis="|".join((item.entity_id,Vendor.PALO_ALTO.value,item.target_version or "",mappings.management_mode.value,item.status.value,capability))
+                    item.decision_id=__import__("hashlib").sha256(basis.encode()).hexdigest()[:16]
         return MigrationPlan(source_vendor=source,mappings=mappings,compatibility=compatibility,names=names,generate=generate,blocked=blocked,advisories=advisories,source_version=source_version,target_version=target_version)
 
     @staticmethod

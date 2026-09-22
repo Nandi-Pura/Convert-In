@@ -1,7 +1,9 @@
 from app.core.models import Vendor
 from .models import Capability,CapabilityStatus as S,VersionProfile
 
-def _cap(refs,status=S.DOCUMENTED_IMPLEMENTED_TESTED,limitation=None,**evidence): return Capability(status=status,documentation_refs=refs,limitation=limitation,**evidence)
+def _cap(refs,status=S.DOCUMENTED_IMPLEMENTED_TESTED,limitation=None,**evidence):
+    verified=status==S.DOCUMENTED_IMPLEMENTED_TESTED
+    return Capability(status=status,documentation_refs=refs,limitation=limitation,renderer_support=verified,test_refs=["tests/test_semantic_compatibility.py"] if verified else [],**evidence)
 PROFILES={}
 for family in ("9.20","9.22","9.24"):
     objects=f"ASA-{family}-ACCESS-OBJECTS"; routes=f"ASA-{family}-STATIC-ROUTES"; firewall=f"ASA-{family}-FIREWALL"

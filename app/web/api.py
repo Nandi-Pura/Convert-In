@@ -1,4 +1,5 @@
 import json
+from collections import Counter
 from html import escape
 from pathlib import Path
 from uuid import uuid4
@@ -34,7 +35,7 @@ def convert_configuration(config:str=Form(...),source_vendor:str=Form("auto"),so
     project_id=str(uuid4()); root=(settings.workspace_dir/project_id/"quick-convert").resolve(); base=settings.workspace_dir.resolve()
     if base not in root.parents: raise HTTPException(400,"Invalid workspace path")
     root.mkdir(parents=True,exist_ok=False); filename=safe_filename(source_filename); (root/filename).write_text("\n".join(result.lines)+"\n",encoding="utf-8")
-    return {"project_id":project_id,"detected_source_vendor":result.source_vendor.value,"detected_source_version":result.source_version,"extraction_coverage":result.extraction_coverage.model_dump(mode="json"),"reference_integrity":result.reference_integrity.model_dump(mode="json"),"conversion_summary":result.summary,"category_accounting":result.categories,"warnings":result.warnings,"candidate_filename":filename,"download_url":f"/api/convert/{project_id}/download"}
+    return {"project_id":project_id,"detected_source_vendor":result.source_vendor.value,"detected_source_version":result.source_version,"extraction_coverage":result.extraction_coverage.model_dump(mode="json"),"reference_integrity":result.reference_integrity.model_dump(mode="json"),"semantic_compatibility":result.semantic_compatibility,"conversion_summary":result.summary,"category_accounting":result.categories,"warnings":result.warnings,"candidate_filename":filename,"download_url":f"/api/convert/{project_id}/download"}
 
 @router.post("/convert/detect")
 def detect_configuration(config:str=Form(...)):
@@ -176,6 +177,12 @@ def _plan(project_id):
 def migration_compatibility(project_id:str):
     plan=_plan(project_id)[0]
     return {"source_vendor":plan.source_vendor,"target_vendor":plan.target_vendor,"items":plan.compatibility}
+
+@router.get("/projects/{project_id}/semantic-compatibility")
+def semantic_compatibility(project_id:str):
+    plan=_plan(project_id)[0]
+    counts=Counter(x.status.value for x in plan.compatibility)
+    return {"summary":dict(counts),"items":plan.compatibility}
 
 @router.post("/projects/{project_id}/migration/plan")
 def migration_plan(project_id:str): return _plan(project_id)[0]

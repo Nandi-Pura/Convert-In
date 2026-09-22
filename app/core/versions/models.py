@@ -18,6 +18,7 @@ class VersionFamily(BaseModel): vendor:Vendor; os_name:str; value:str
 class Capability(BaseModel):
     status:CapabilityStatus; documentation_refs:list[str]=Field(default_factory=list); syntax_variant:str|None=None; limitation:str|None=None
     target_match_semantics_documented:bool=False; target_translation_semantics_documented:bool=False; route_lookup_semantics_documented:bool=False
+    renderer_support:bool=False; test_refs:list[str]=Field(default_factory=list)
 
 class EvidenceState(BaseModel):
     source_semantic_documented:bool=False; target_match_semantics_documented:bool=False; target_translation_semantics_documented:bool=False

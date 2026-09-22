@@ -2,7 +2,8 @@ from .models import CapabilityStatus
 
 VERIFIED={CapabilityStatus.DOCUMENTED_IMPLEMENTED_TESTED}
 EMITTED_CAPABILITIES=("address","address_group","service","service_group","security_policy","route")
-def capability_verified(profile,name): return bool(profile and name in profile.capabilities and profile.capabilities[name].status in VERIFIED and profile.capabilities[name].documentation_refs)
+def capability_verified(profile,name):
+    return bool(profile and name in profile.capabilities and profile.capabilities[name].status in VERIFIED and profile.capabilities[name].documentation_refs and profile.capabilities[name].renderer_support and profile.capabilities[name].test_refs)
 
 def emitted_capability_fully_evidenced(source_profile,target_profile,name):
     return name in EMITTED_CAPABILITIES and capability_verified(source_profile,name) and capability_verified(target_profile,name) and source_profile.tested and target_profile.tested

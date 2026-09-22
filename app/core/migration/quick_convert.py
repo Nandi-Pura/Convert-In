@@ -25,6 +25,7 @@ class QuickConvertResult:
     warnings: list[str]
     extraction_coverage: ExtractionCoverageReport
     reference_integrity: ReferenceIntegrityReport
+    semantic_compatibility: dict[str,int]
 
 def profiles():
     return [{"vendor":x.vendor.value,"label":x.label,"role":x.role.value,"versions":list(x.versions),"management_modes":list(x.management_modes)} for x in QUICK_CONVERT_PROFILES]
@@ -72,15 +73,16 @@ def convert(text:str,source_vendor:str,source_version:str,target_vendor:str="pal
         items=[x for x in plan.compatibility if x.entity_type==kind]
         if items: categories[label]={"generated":sum(states[x.entity_id]=="GENERATED" for x in items),"review":sum(states[x.entity_id]!="GENERATED" for x in items)}
     summary={"generated":counts["GENERATED"],"manual_review":counts["MANUAL_REVIEW"],"unsupported":counts["UNSUPPORTED"],"version_not_verified":counts["VERSION_NOT_VERIFIED"],"total":len(plan.compatibility)}
+    cp2=Counter(x.status.value for x in plan.compatibility)
     coverage=cfg.extraction_coverage
-    header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Source Vendor: {'Cisco ASA' if vendor==Vendor.ASA else 'FortiGate'}",f"# Source Version: {selected}","# Target Vendor: Palo Alto Networks","# Target Version: PAN-OS 11.1","# Management Mode: LOCAL_FIREWALL","#","# Generated locally.","# No deployment performed.","#","# Source Extraction Coverage",f"# Semantic Constructs: {coverage.semantic_total}",f"# Normalized: {coverage.normalized}",f"# Recovered: {coverage.recovered}",f"# Unparsed: {coverage.unparsed}",f"# Source Unsupported: {coverage.unsupported}",f"# Coverage: {coverage.coverage_percent:.2f}%","#","# Reference Integrity",f"# References Checked: {integrity.total_references}",f"# Resolved: {integrity.resolved_references}",f"# Unresolved: {integrity.unresolved_references}",f"# Warnings: {integrity.warnings}",f"# Blocking Findings: {integrity.blocking_findings}","#","# Conversion Summary",f"# Generated: {summary['generated']}",f"# Manual Review: {summary['manual_review']}",f"# Unsupported: {summary['unsupported']}",f"# Version Not Verified: {summary['version_not_verified']}","#"]
+    header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Source Vendor: {'Cisco ASA' if vendor==Vendor.ASA else 'FortiGate'}",f"# Source Version: {selected}","# Target Vendor: Palo Alto Networks","# Target Version: PAN-OS 11.1","# Management Mode: LOCAL_FIREWALL","#","# Generated locally.","# No deployment performed.","#","# Source Extraction Coverage",f"# Semantic Constructs: {coverage.semantic_total}",f"# Normalized: {coverage.normalized}",f"# Recovered: {coverage.recovered}",f"# Unparsed: {coverage.unparsed}",f"# Source Unsupported: {coverage.unsupported}",f"# Coverage: {coverage.coverage_percent:.2f}%","#","# Reference Integrity",f"# References Checked: {integrity.total_references}",f"# Resolved: {integrity.resolved_references}",f"# Unresolved: {integrity.unresolved_references}",f"# Warnings: {integrity.warnings}",f"# Blocking Findings: {integrity.blocking_findings}","#","# Semantic Compatibility",*[f"# {name.replace('_',' ').title()}: {cp2[name]}" for name in ("EXACT","SUPPORTED","PARTIAL","MANUAL_REVIEW","UNSUPPORTED","VERSION_NOT_VERIFIED")],"#","# Conversion Summary",f"# Generated: {summary['generated']}",f"# Manual Review: {summary['manual_review']}",f"# Unsupported: {summary['unsupported']}",f"# Version Not Verified: {summary['version_not_verified']}","#"]
     header += [f"# {name}: {value['generated']} generated / {value['review']} review" for name,value in categories.items()]
     review=[]
     for item in plan.compatibility:
         state=states[item.entity_id]
         if state=="GENERATED": continue
         reason=" ".join(item.reasons) or "Target command omitted by the current documented scope."
-        review += ["#",f"# [{state}] {CATEGORY_LABELS.get(item.entity_type,item.entity_type)}: {item.source_name}","# Target command omitted.",f"# Reason: {reason}"]
+        review += ["#",f"# [{item.status.value}] {CATEGORY_LABELS.get(item.entity_type,item.entity_type)}: {item.source_name}",f"# Preserved: {', '.join(item.preserved_semantics) or 'none'}",f"# Not preserved: {', '.join(item.lost_semantics) or 'none'}","# Target command omitted to avoid semantic loss.",f"# Reason: {reason}"]
     for finding in integrity.findings:
         if finding.blocking:
             path=" → ".join(finding.dependency_path)
@@ -90,4 +92,4 @@ def convert(text:str,source_vendor:str,source_version:str,target_vendor:str="pal
     if cfg.security_policies: review += ["#","# [MANUAL_REVIEW] Security rule ordering","# Source rule ordering intent was preserved for review.","# No automatic target move operation was executed."]
     lines=header+["#"]+commands+review
     warnings=[x.message for x in cfg.warnings]+plan.advisories
-    return QuickConvertResult(vendor,selected,lines,summary,categories,warnings,coverage,integrity)
+    return QuickConvertResult(vendor,selected,lines,summary,categories,warnings,coverage,integrity,dict(cp2))
