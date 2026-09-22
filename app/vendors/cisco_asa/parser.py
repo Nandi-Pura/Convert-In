@@ -64,7 +64,7 @@ class AsaParser:
             if m:
                 acl=m[1]; positions[acl]=positions.get(acl,0)+1; rule=self._acl(m,line,number,positions[acl],cfg); rule.description=remarks.pop(acl,None); cfg.security_policies.append(rule); current=None; section="access-list"; continue
             if line.startswith("nat ("):nat_position+=1; cfg.nat_policies.append(self._manual_nat(line,number,nat_position)); continue
-            if line.startswith("hostname "):continue
+            if line.startswith("hostname ") or line.startswith("ASA Version "):continue
             self._unparsed(cfg,number,section,line,"Unsupported ASA syntax")
         for rule in cfg.security_policies:
             attachment=attachments.get(rule.vendor_extensions["acl"]); rule.vendor_extensions["attachment"]=attachment or {"attached":False}; rule.vendor_extensions["attached"]=bool(attachment)

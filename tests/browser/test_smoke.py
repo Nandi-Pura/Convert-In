@@ -73,6 +73,7 @@ def test_quick_convert_file_download(page,live_server,tmp_path):
     page.locator("#quick-source-version").select_option("7.4")
     page.get_by_role("button",name="Convert Configuration").click(); page.get_by_role("heading",name="Conversion completed").wait_for()
     assert page.locator("#quick-generated").inner_text().isdigit() and page.locator("#quick-review").inner_text().isdigit()
+    assert page.locator("#quick-result").get_by_text("Source Extraction Coverage",exact=True).is_visible()
     with page.expect_download() as download: page.get_by_role("link",name="Download Converted Config").click()
     assert download.value.suggested_filename.endswith("-to-panos-11.1.set")
 

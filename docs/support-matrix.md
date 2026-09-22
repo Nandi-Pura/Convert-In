@@ -2,6 +2,8 @@
 
 ## Quick Convert Q1
 
+CP0 Source Extraction Coverage is supported for the bounded ASA and FortiGate parser scopes. PAN-OS XML CP0 is not implemented. CP0 accounts parser extraction only; it does not expand or score target generation support.
+
 Supported generation uses FortiOS 7.4/7.6 or Cisco ASA 9.20/9.22/9.24 as sources, normalized `FirewallConfig`, and PAN-OS 11.1 `LOCAL_FIREWALL` as the target. The generated subset is addresses, address groups, services, service groups, evidenced security policies, and evidenced static routes.
 
 NAT, ambiguous target context, ambiguous interface/zone mapping, advanced semantics, and unverified versions remain review or non-generated. PAN-OS 12.1, Panorama, live mutation, commit, and deployment remain blocked.

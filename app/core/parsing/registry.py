@@ -12,4 +12,9 @@ def detect_vendor(text: str) -> DetectionResult:
 
 def parse_config(text: str, vendor: Vendor):
     if vendor not in PARSERS: raise ValueError("Select a source vendor")
-    return PARSERS[vendor].parse(text)
+    cfg=PARSERS[vendor].parse(text)
+    if vendor in {Vendor.ASA, Vendor.FORTIGATE}:
+        detected=cfg.metadata.get("version_detection",{}).get("detected_family")
+        ignored=sum(not line.strip() or line.lstrip().startswith(("!","#")) for line in text.splitlines())
+        cfg.finalize_extraction(vendor,detected,ignored)
+    return cfg

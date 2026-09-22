@@ -13,6 +13,8 @@ Convert-In is a local firewall configuration analysis, visualization, and migrat
 
 Generated output requires engineer review. No deployment or device validation occurs.
 
+Convert-In separates [Source Extraction Coverage](docs/extraction-coverage.md), which accounts for source constructs understood by the parser, from target conversion accounting, which records what can be safely generated or requires review. Neither metric claims migration accuracy or compatibility.
+
 **Advanced Workbench** remains available for analysis, visualization, mapping, compatibility evidence, semantic review, application validation, optional PAN lab validation, and package export.
 
 Current capabilities:

@@ -1,4 +1,5 @@
 from enum import StrEnum
+import hashlib
 from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -20,6 +21,51 @@ class Severity(StrEnum):
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"
+
+
+class ExtractionOutcome(StrEnum):
+    NORMALIZED = "NORMALIZED"
+    UNPARSED = "UNPARSED"
+    SOURCE_UNSUPPORTED = "SOURCE_UNSUPPORTED"
+    RECOVERED = "RECOVERED"
+    IGNORED_NON_SEMANTIC = "IGNORED_NON_SEMANTIC"
+
+
+class SourceExtractionItem(BaseModel):
+    id: str
+    source_vendor: Vendor
+    source_version: str | None = None
+    source_type: str
+    source_name: str
+    source_location: str | None = None
+    outcome: ExtractionOutcome
+    normalized_entity_ids: list[str] = Field(default_factory=list)
+    reason: str | None = None
+    parser_warning_ids: list[str] = Field(default_factory=list)
+
+
+class ExtractionCategoryBreakdown(BaseModel):
+    semantic_total: int = 0
+    normalized: int = 0
+    recovered: int = 0
+    unparsed: int = 0
+    unsupported: int = 0
+
+
+class ExtractionCoverageReport(BaseModel):
+    source_vendor: Vendor
+    source_version: str | None = None
+    semantic_total: int
+    normalized: int
+    recovered: int
+    unparsed: int
+    unsupported: int
+    ignored_non_semantic: int
+    coverage_percent: float | None
+    category_breakdown: dict[str, ExtractionCategoryBreakdown] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    blocking_issues: list[str] = Field(default_factory=list)
+    items: list[SourceExtractionItem] = Field(default_factory=list)
 
 
 class Provenance(BaseModel):
@@ -173,6 +219,10 @@ class UnparsedConstruct(BaseModel):
     raw_text: str
     reason: str
     severity: Severity = Severity.WARNING
+    source_version: str | None = None
+    category: str | None = None
+    source_extraction_id: str | None = None
+    unsupported: bool = False
 
 
 class FirewallConfig(BaseModel):
@@ -190,6 +240,7 @@ class FirewallConfig(BaseModel):
     raw_vendor_extensions: dict[str, Any] = Field(default_factory=dict)
     warnings: list[ParseIssue] = Field(default_factory=list)
     unparsed_constructs: list[UnparsedConstruct] = Field(default_factory=list)
+    extraction_coverage: ExtractionCoverageReport | None = None
 
     @model_validator(mode="after")
     def warn_duplicate_ids(self):
@@ -222,4 +273,41 @@ class FirewallConfig(BaseModel):
             "errors": sum(x.severity == Severity.ERROR for x in self.warnings),
             "unparsed": len(self.unparsed_constructs),
         }
+        return self
+
+    def finalize_extraction(self, vendor: Vendor, version: str | None, ignored: int = 0) -> "FirewallConfig":
+        kinds = (("interfaces", "interface"), ("zones", "zone"), ("addresses", "address"), ("address_groups", "address_group"), ("services", "service"), ("service_groups", "service_group"), ("security_policies", "security_policy"), ("nat_policies", "nat"), ("static_routes", "route"), ("vpn_objects", "vpn"))
+        items: list[SourceExtractionItem] = []
+        def stable(kind: str, name: str, location: str) -> str:
+            key = f"{vendor.value}|{kind}|{name}|{location}".encode()
+            return "src-" + hashlib.sha256(key).hexdigest()[:16]
+        by_location: dict[str, SourceExtractionItem] = {}
+        for attr, kind in kinds:
+            for entity in getattr(self, attr):
+                p = entity.provenance; line = p.source_line if p else None; location = f"line {line}" if line else (p.source_section if p else None) or "unknown"
+                recovered = bool(entity.vendor_extensions.get("truncated_block"))
+                if location in by_location:
+                    by_location[location].normalized_entity_ids.append(entity.id)
+                    if recovered: by_location[location].outcome=ExtractionOutcome.RECOVERED; by_location[location].reason="Parser recovered an incomplete construct."
+                else:
+                    item=SourceExtractionItem(id=stable(kind, entity.name, location), source_vendor=vendor, source_version=version, source_type=kind, source_name=entity.name, source_location=location, outcome=ExtractionOutcome.RECOVERED if recovered else ExtractionOutcome.NORMALIZED, normalized_entity_ids=[entity.id], reason="Parser recovered an incomplete construct." if recovered else None)
+                    by_location[location]=item; items.append(item)
+        for entry in self.unparsed_constructs:
+            location = f"line {entry.line_number}" if entry.line_number else entry.section or "unknown"; kind = entry.category or entry.section or "other/unparsed"; name = entry.section or "construct"
+            if location in by_location and entry.reason == "Unsupported field preserved":
+                by_location[location].outcome=ExtractionOutcome.RECOVERED; by_location[location].reason="Normalized with unsupported source fields preserved for review."
+                entry.source_extraction_id=by_location[location].id; entry.source_version=version; entry.category=kind
+                continue
+            outcome = ExtractionOutcome.SOURCE_UNSUPPORTED if entry.unsupported else ExtractionOutcome.UNPARSED
+            item_id = stable(kind, name, location); entry.source_extraction_id = item_id; entry.source_version = version; entry.category = kind
+            items.append(SourceExtractionItem(id=item_id, source_vendor=vendor, source_version=version, source_type=kind, source_name=name, source_location=location, outcome=outcome, reason=entry.reason))
+        counts = {outcome: sum(x.outcome == outcome for x in items) for outcome in ExtractionOutcome}
+        semantic_total = counts[ExtractionOutcome.NORMALIZED] + counts[ExtractionOutcome.RECOVERED] + counts[ExtractionOutcome.UNPARSED] + counts[ExtractionOutcome.SOURCE_UNSUPPORTED]
+        categories: dict[str, ExtractionCategoryBreakdown] = {}
+        for item in items:
+            if item.outcome == ExtractionOutcome.IGNORED_NON_SEMANTIC: continue
+            row = categories.setdefault(item.source_type, ExtractionCategoryBreakdown()); row.semantic_total += 1
+            setattr(row, {ExtractionOutcome.NORMALIZED:"normalized", ExtractionOutcome.RECOVERED:"recovered", ExtractionOutcome.UNPARSED:"unparsed", ExtractionOutcome.SOURCE_UNSUPPORTED:"unsupported"}[item.outcome], getattr(row, {ExtractionOutcome.NORMALIZED:"normalized", ExtractionOutcome.RECOVERED:"recovered", ExtractionOutcome.UNPARSED:"unparsed", ExtractionOutcome.SOURCE_UNSUPPORTED:"unsupported"}[item.outcome]) + 1)
+        effective = counts[ExtractionOutcome.NORMALIZED] + counts[ExtractionOutcome.RECOVERED]
+        self.extraction_coverage = ExtractionCoverageReport(source_vendor=vendor, source_version=version, semantic_total=semantic_total, normalized=counts[ExtractionOutcome.NORMALIZED], recovered=counts[ExtractionOutcome.RECOVERED], unparsed=counts[ExtractionOutcome.UNPARSED], unsupported=counts[ExtractionOutcome.SOURCE_UNSUPPORTED], ignored_non_semantic=ignored, coverage_percent=round(effective / semantic_total * 100, 2) if semantic_total else None, category_breakdown=categories, warnings=[x.message for x in self.warnings if x.severity != Severity.ERROR], blocking_issues=[x.message for x in self.warnings if x.severity == Severity.ERROR], items=items)
         return self

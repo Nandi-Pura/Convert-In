@@ -17,6 +17,8 @@ def test_vendor_quick_convert_is_accounted_and_reviewable(vendor):
     candidate="\n".join(result.lines)
     assert candidate.startswith("# Convert-In\n# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED")
     assert result.summary["total"]==sum(result.summary[x] for x in ("generated","manual_review","unsupported","version_not_verified"))
+    assert result.extraction_coverage.semantic_total==result.extraction_coverage.normalized+result.extraction_coverage.recovered+result.extraction_coverage.unparsed+result.extraction_coverage.unsupported
+    assert "# Source Extraction Coverage" in candidate and "# Semantic Constructs:" in candidate
     assert "# Addresses:" in candidate and "# [" in candidate
     assert not any(line.startswith("set rulebase nat") for line in result.lines)
 
@@ -51,6 +53,7 @@ def test_api_file_contract_and_download_isolation(tmp_path,monkeypatch):
     text=Path("examples/fortigate/basic.conf").read_text()
     response=client.post("/api/convert",data={"config":text,"source_vendor":"fortigate","source_version":"7.4","target_vendor":"paloalto","target_version":"11.1","management_mode":"LOCAL_FIREWALL","source_filename":"../../unsafe config.cfg"})
     assert response.status_code==200; data=response.json()
+    assert data["extraction_coverage"]["semantic_total"] and data["extraction_coverage"]["coverage_percent"] is not None
     assert data["candidate_filename"]=="unsafe-config-to-panos-11.1.set"
     download=client.get(data["download_url"])
     assert download.status_code==200 and "source.cfg" not in download.text

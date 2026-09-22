@@ -56,7 +56,7 @@ class FortiGateParser:
     def _emit(self, cfg, section, item, truncated=False):
         name=item["name"]; values=item["values"]; line=item["line"]; one=lambda key,default=None: values.get(key,[default])[0]; p=Provenance(source_vendor=self.vendor,source_line=line,source_section=section)
         if section not in self.known:
-            self._unparsed(cfg,line,section,"\n".join(item["raw"]),"Unsupported configuration block"); return
+            self._unparsed(cfg,line,section,"\n".join(item["raw"]),"Unsupported configuration block",unsupported=True); return
         extensions={k:v for k,v in values.items() if k not in self.consumed[section]}
         if truncated: extensions["truncated_block"]=True; cfg.warnings.append(ParseIssue(severity=Severity.WARNING,vendor=self.vendor,section=section,line=line,message="Edit block missing next"))
         try:
@@ -97,8 +97,8 @@ class FortiGateParser:
         for value in values:
             parts=value.split(":",1); destination.append(parts[0]); source.extend(parts[1:] if len(parts)>1 and parts[1]!="0-65535" else [])
         return source,destination
-    def _unparsed(self,cfg,line,section,raw,reason,severity=Severity.WARNING):
-        cfg.unparsed_constructs.append(UnparsedConstruct(vendor=self.vendor,section=section,line_number=line,raw_text=raw,reason=reason,severity=severity)); cfg.warnings.append(ParseIssue(severity=severity,vendor=self.vendor,section=section,line=line,message=reason,raw_text=raw))
+    def _unparsed(self,cfg,line,section,raw,reason,severity=Severity.WARNING,unsupported=False):
+        cfg.unparsed_constructs.append(UnparsedConstruct(vendor=self.vendor,section=section,line_number=line,raw_text=raw,reason=reason,severity=severity,unsupported=unsupported)); cfg.warnings.append(ParseIssue(severity=severity,vendor=self.vendor,section=section,line=line,message=reason,raw_text=raw))
     def _references(self,cfg):
         addresses={"all","any"}|{x.name for x in cfg.addresses+cfg.address_groups}; services={"ALL","any"}|{x.name for x in cfg.services+cfg.service_groups}
         for rule in cfg.security_policies:
