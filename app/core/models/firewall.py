@@ -10,6 +10,12 @@ class Vendor(StrEnum):
     UNKNOWN = "unknown"
 
 
+class ConfigDomain(StrEnum):
+    FIREWALL = "FIREWALL"
+    ROUTER = "ROUTER"
+    SWITCH = "SWITCH"
+
+
 class Severity(StrEnum):
     INFO = "INFO"
     WARNING = "WARNING"

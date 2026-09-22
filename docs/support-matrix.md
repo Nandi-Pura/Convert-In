@@ -1,5 +1,11 @@
 # Version-aware support matrix
 
+## Quick Convert Q1
+
+Supported generation uses FortiOS 7.4/7.6 or Cisco ASA 9.20/9.22/9.24 as sources, normalized `FirewallConfig`, and PAN-OS 11.1 `LOCAL_FIREWALL` as the target. The generated subset is addresses, address groups, services, service groups, evidenced security policies, and evidenced static routes.
+
+NAT, ambiguous target context, ambiguous interface/zone mapping, advanced semantics, and unverified versions remain review or non-generated. PAN-OS 12.1, Panorama, live mutation, commit, and deployment remain blocked.
+
 States: **SYNTAX_VERIFIED**, **END_TO_END_VERIFIED**, **VERSION_NOT_VERIFIED**, **MANUAL_REVIEW**, **NOT_APPLICABLE**.
 
 | Feature | ASA 9.20 | ASA 9.22 | ASA 9.24 | FortiOS 7.4 | FortiOS 7.6 | PAN-OS 11.1 | PAN-OS 12.1 |

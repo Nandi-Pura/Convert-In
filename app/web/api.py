@@ -18,8 +18,37 @@ from app.core.review import ReviewDecision,build_review,export_package,load_deci
 from app.core.versions import resolve_context
 from app.core.versions.models import VersionContext
 from app.core.pan_lab import PanLabValidationResult
+from app.core.migration.quick_convert import convert as quick_convert, detect_source, profiles as quick_profiles, safe_filename
 
 router = APIRouter(prefix="/api")
+
+@router.get("/convert/profiles")
+def quick_convert_profiles(): return {"profiles":quick_profiles()}
+
+@router.post("/convert")
+def convert_configuration(config:str=Form(...),source_vendor:str=Form("auto"),source_version:str=Form(""),target_vendor:str=Form("paloalto"),target_version:str=Form("11.1"),management_mode:str=Form("LOCAL_FIREWALL"),source_filename:str=Form("converted.cfg")):
+    if len(config.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds 5 MiB limit")
+    try: result=quick_convert(config,source_vendor,source_version,target_vendor,target_version,management_mode)
+    except ValueError as exc: raise HTTPException(422,str(exc)) from exc
+    project_id=str(uuid4()); root=(settings.workspace_dir/project_id/"quick-convert").resolve(); base=settings.workspace_dir.resolve()
+    if base not in root.parents: raise HTTPException(400,"Invalid workspace path")
+    root.mkdir(parents=True,exist_ok=False); filename=safe_filename(source_filename); (root/filename).write_text("\n".join(result.lines)+"\n",encoding="utf-8")
+    return {"project_id":project_id,"detected_source_vendor":result.source_vendor.value,"detected_source_version":result.source_version,"conversion_summary":result.summary,"category_accounting":result.categories,"warnings":result.warnings,"candidate_filename":filename,"download_url":f"/api/convert/{project_id}/download"}
+
+@router.post("/convert/detect")
+def detect_configuration(config:str=Form(...)):
+    if len(config.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds 5 MiB limit")
+    detected,version=detect_source(config)
+    return {"vendor":detected.vendor.value,"version":version,"confidence":detected.confidence}
+
+@router.get("/convert/{project_id}/download")
+def download_converted_config(project_id:str):
+    if not __import__("re").fullmatch(r"[0-9a-f-]{36}",project_id): raise HTTPException(404,"Candidate not found")
+    root=(settings.workspace_dir/project_id/"quick-convert").resolve(); base=settings.workspace_dir.resolve()
+    if base not in root.parents or not root.is_dir(): raise HTTPException(404,"Candidate not found")
+    files=list(root.glob("*.set"))
+    if len(files)!=1 or files[0].parent!=root: raise HTTPException(404,"Candidate not found")
+    return FileResponse(files[0],media_type="text/plain",filename=files[0].name)
 
 @router.post("/analyze", response_class=HTMLResponse)
 def analyze(source: str = Form(...), source_vendor: str = Form("auto"), target_vendor: str = Form(...), source_version: str|None = Form(None), target_version: str|None = Form(None)):

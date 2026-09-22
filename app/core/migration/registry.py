@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import StrEnum
 from app.core.models import Vendor
 from .sources import CiscoAsaSourceAdapter, FortiGateSourceAdapter, MigrationSourceAdapter
 
@@ -11,6 +12,22 @@ class MigrationPair:
     documentation_profile: str
     supported_source_profiles: frozenset[str]
     supported_target_profiles: frozenset[str]
+
+class QuickConvertRole(StrEnum): SOURCE="SOURCE"; TARGET="TARGET"
+
+@dataclass(frozen=True)
+class VendorProfile:
+    vendor: Vendor
+    label: str
+    role: QuickConvertRole
+    versions: tuple[str, ...]
+    management_modes: tuple[str, ...] = ()
+
+QUICK_CONVERT_PROFILES = (
+    VendorProfile(Vendor.ASA,"Cisco ASA",QuickConvertRole.SOURCE,("9.20","9.22","9.24")),
+    VendorProfile(Vendor.FORTIGATE,"FortiGate",QuickConvertRole.SOURCE,("7.4","7.6")),
+    VendorProfile(Vendor.PALO_ALTO,"Palo Alto Networks",QuickConvertRole.TARGET,("11.1",),("LOCAL_FIREWALL",)),
+)
 
 
 SUPPORTED_MIGRATION_PAIRS = {

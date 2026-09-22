@@ -2,15 +2,18 @@
 
 Convert-In is a local firewall configuration analysis, visualization, and migration workbench.
 
-## Migration workflow
+## Quick Convert
 
 1. Drop or paste a synthetic or sanitized FortiGate/ASA configuration.
-2. Select **Analyze & Convert**. Confirm the detected source OS version and **PAN-OS 11.1 / LOCAL_FIREWALL** target.
-3. Map source interfaces/contexts to target interfaces/zones. Confirm virtual router and security-rule placement.
-4. Review generated, manual-review, unsupported, and version-not-verified items. NAT remains review-only.
-5. Run application-level validation. Export the candidate package.
+2. Confirm the source vendor and OS version.
+3. Confirm **Palo Alto Networks / PAN-OS 11.1 / LOCAL_FIREWALL**.
+4. Select **Convert Configuration**.
+5. Download the single candidate `.set` file.
+6. Review inline manual-review, unsupported, and version-not-verified comments.
 
 Generated output requires engineer review. No deployment or device validation occurs.
+
+**Advanced Workbench** remains available for analysis, visualization, mapping, compatibility evidence, semantic review, application validation, optional PAN lab validation, and package export.
 
 Current capabilities:
 
@@ -34,12 +37,12 @@ Inputs are limited to 5 MiB, PAN XML uses `defusedxml`, configuration bodies are
 
 Sanitized screenshots are planned for `docs/images/overview.png`, `visualize.png`, `analysis.png`, `migration.png`, and `review.png`. They are intentionally omitted until captured from synthetic data; no broken images are embedded.
 
-## Support matrix
+## Q1 support matrix
 
 | Area | Capability | Status |
 |---|---|---|
-| Source parsing | Cisco ASA | MVP |
-| Source parsing | FortiGate | MVP |
+| Supported generation source | Cisco ASA 9.20, 9.22, 9.24 | Explicit profiles |
+| Supported generation source | FortiOS 7.4, 7.6 | Explicit profiles |
 | Source parsing | PAN-OS XML | MVP |
 | Analysis | Dependencies, unused objects, duplicates, unresolved references | MVP |
 | Analysis | Impact analysis, potential shadowing | MVP |
@@ -47,7 +50,10 @@ Sanitized screenshots are planned for `docs/images/overview.png`, `visualize.png
 | Migration | Cisco ASA → PAN-OS | Candidate generation |
 | Migration | FortiGate → PAN-OS | Alpha / candidate |
 | Migration | PAN-OS → FortiGate | Not implemented |
-| Target output | PAN-OS set commands | Engineer review required |
+| Supported generation target | PAN-OS 11.1 `LOCAL_FIREWALL` | Engineer review required |
+| Generated subset | Addresses/groups, services/groups, supported security policies, supported static routes | Documentation-gated |
+| Review / non-generated | NAT, ambiguous target context, interface/zone mapping, advanced semantics, unverified versions | Inline comments |
+| Blocked | PAN-OS 12.1, Panorama, live deployment | Not supported by Quick Convert |
 
 Coverage is intentionally bounded by tests. Convert-In does **not** claim full vendor conversion.
 

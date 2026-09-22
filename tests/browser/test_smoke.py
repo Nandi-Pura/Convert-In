@@ -13,8 +13,9 @@ def test_fortigate_offline_workflow(page,live_server):
     page.on("response",lambda response: assets.update({urlparse(response.url).path:response.status}) if "/static/" in response.url else None)
     page.on("response",lambda response: failed.append(f"{response.status} {response.url}") if response.status>=400 else None)
     page.goto(live_server)
+    page.get_by_role("button",name="Advanced Workbench").click()
     assert assets=={"/static/css/app.css":200,"/static/vendor/htmx/htmx.min.js":200,"/static/vendor/cytoscape/cytoscape.min.js":200,"/static/js/app.js":200}
-    page.locator('[name="source_vendor"]').select_option("fortigate"); page.locator('[name="source_version"]').select_option("7.4"); page.locator("#target-version").select_option("11.1")
+    page.locator('#import-form [name="source_vendor"]').select_option("fortigate"); page.locator('#import-form [name="source_version"]').select_option("7.4"); page.locator("#target-version").select_option("11.1")
     page.locator("#file").set_input_files(str(Path("examples/fortigate/basic.conf").resolve()))
     page.wait_for_function("() => document.querySelector('#source').value.length > 0")
     page.get_by_role("button",name="Analyze & Convert").click(); page.locator("#workbench").wait_for()
@@ -62,5 +63,21 @@ def test_fortigate_offline_workflow(page,live_server):
 
 def test_malformed_is_recoverable(page,live_server):
     live_server,_=live_server
-    page.goto(live_server); page.get_by_role("tab",name="Paste").click(); page.locator("#source").fill("not a firewall configuration"); page.get_by_role("button",name="Analyze & Convert").click()
+    page.goto(live_server); page.get_by_role("button",name="Advanced Workbench").click(); page.get_by_role("tab",name="Paste").click(); page.locator("#source").fill("not a firewall configuration"); page.get_by_role("button",name="Analyze & Convert").click()
     page.wait_for_timeout(300); assert page.locator("#source").input_value()=="not a firewall configuration"
+
+def test_quick_convert_file_download(page,live_server,tmp_path):
+    live_server,_=live_server; page.set_viewport_size({"width":1440,"height":900}); page.goto(live_server)
+    assert page.locator("#quick-convert").is_visible() and page.locator("#advanced-workbench").is_hidden()
+    page.locator("#quick-file").set_input_files(str(Path("examples/fortigate/basic.conf").resolve()))
+    page.locator("#quick-source-version").select_option("7.4")
+    page.get_by_role("button",name="Convert Configuration").click(); page.get_by_role("heading",name="Conversion completed").wait_for()
+    assert page.locator("#quick-generated").inner_text().isdigit() and page.locator("#quick-review").inner_text().isdigit()
+    with page.expect_download() as download: page.get_by_role("link",name="Download Converted Config").click()
+    assert download.value.suggested_filename.endswith("-to-panos-11.1.set")
+
+@pytest.mark.parametrize("width,height",[(1280,800),(1440,900),(1600,900),(1920,1080)])
+def test_quick_convert_responsive(page,live_server,width,height):
+    live_server,_=live_server; page.set_viewport_size({"width":width,"height":height}); page.goto(live_server)
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    assert page.get_by_role("button",name="Convert Configuration").is_visible()
