@@ -4,7 +4,7 @@ Convert-In is a local firewall configuration analysis, visualization, and migrat
 
 ## Quick Convert
 
-1. Drop or paste a synthetic or sanitized FortiGate/ASA configuration.
+1. Drop or paste a synthetic or sanitized Cisco ASA, FortiGate, or Juniper SRX configuration.
 2. Confirm the source vendor and OS version.
 3. Confirm **Palo Alto Networks / PAN-OS 11.1 / LOCAL_FIREWALL**.
 4. Select **Convert Configuration**.
@@ -20,6 +20,8 @@ Assurance pipeline: [CP0 Source Extraction Coverage](docs/extraction-coverage.md
 Current capabilities:
 
 - Cisco ASA, FortiGate, and Palo Alto PAN-OS XML parsing
+- Juniper SRX Junos 23.4R2 set-style source parsing and bounded PAN-OS candidate generation
+- separate RouterConfig and SwitchConfig foundations; no router/switch conversion claim
 - a normalized vendor-neutral firewall model
 - object and policy dependency visualization
 - configuration and impact analysis

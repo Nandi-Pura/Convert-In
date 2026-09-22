@@ -37,7 +37,7 @@ def safe_filename(value:str|None)->str:
 
 def detect_source(text:str):
     detected=detect_vendor(text)
-    if detected.vendor not in {Vendor.ASA,Vendor.FORTIGATE}: return detected,None
+    if detected.vendor not in {Vendor.ASA,Vendor.FORTIGATE,Vendor.JUNIPER_SRX}: return detected,None
     context=resolve_context(text,detected.vendor)
     return detected,context.detected_family if context.confidence=="HIGH" else None
 
@@ -45,7 +45,7 @@ def convert(text:str,source_vendor:str,source_version:str,target_vendor:str="pal
     detected,detected_version=detect_source(text)
     try: vendor=detected.vendor if source_vendor=="auto" else Vendor(source_vendor)
     except ValueError as exc: raise ValueError("Unsupported source vendor.") from exc
-    if vendor not in {Vendor.ASA,Vendor.FORTIGATE}: raise ValueError("Select Cisco ASA or FortiGate as the source vendor.")
+    if vendor not in {Vendor.ASA,Vendor.FORTIGATE,Vendor.JUNIPER_SRX}: raise ValueError("Select Cisco ASA, FortiGate, or Juniper SRX as the source vendor.")
     allowed=next(x.versions for x in QUICK_CONVERT_PROFILES if x.vendor==vendor and x.role==QuickConvertRole.SOURCE)
     selected=source_version or (detected_version if detected.vendor==vendor else None)
     if not selected: raise ValueError("Source version was not detected. Select it explicitly.")
@@ -75,7 +75,8 @@ def convert(text:str,source_vendor:str,source_version:str,target_vendor:str="pal
     summary={"generated":counts["GENERATED"],"manual_review":counts["MANUAL_REVIEW"],"unsupported":counts["UNSUPPORTED"],"version_not_verified":counts["VERSION_NOT_VERIFIED"],"total":len(plan.compatibility)}
     cp2=Counter(x.status.value for x in plan.compatibility)
     coverage=cfg.extraction_coverage
-    header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Source Vendor: {'Cisco ASA' if vendor==Vendor.ASA else 'FortiGate'}",f"# Source Version: {selected}","# Target Vendor: Palo Alto Networks","# Target Version: PAN-OS 11.1","# Management Mode: LOCAL_FIREWALL","#","# Generated locally.","# No deployment performed.","#","# Source Extraction Coverage",f"# Semantic Constructs: {coverage.semantic_total}",f"# Normalized: {coverage.normalized}",f"# Recovered: {coverage.recovered}",f"# Unparsed: {coverage.unparsed}",f"# Source Unsupported: {coverage.unsupported}",f"# Coverage: {coverage.coverage_percent:.2f}%","#","# Reference Integrity",f"# References Checked: {integrity.total_references}",f"# Resolved: {integrity.resolved_references}",f"# Unresolved: {integrity.unresolved_references}",f"# Warnings: {integrity.warnings}",f"# Blocking Findings: {integrity.blocking_findings}","#","# Semantic Compatibility",*[f"# {name.replace('_',' ').title()}: {cp2[name]}" for name in ("EXACT","SUPPORTED","PARTIAL","MANUAL_REVIEW","UNSUPPORTED","VERSION_NOT_VERIFIED")],"#","# Conversion Summary",f"# Generated: {summary['generated']}",f"# Manual Review: {summary['manual_review']}",f"# Unsupported: {summary['unsupported']}",f"# Version Not Verified: {summary['version_not_verified']}","#"]
+    source_label={Vendor.ASA:"Cisco ASA",Vendor.FORTIGATE:"FortiGate",Vendor.JUNIPER_SRX:"Juniper SRX"}[vendor]
+    header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Source Vendor: {source_label}",f"# Source Version: {selected}","# Target Vendor: Palo Alto Networks","# Target Version: PAN-OS 11.1","# Management Mode: LOCAL_FIREWALL","#","# Generated locally.","# No deployment performed.","#","# Source Extraction Coverage",f"# Semantic Constructs: {coverage.semantic_total}",f"# Normalized: {coverage.normalized}",f"# Recovered: {coverage.recovered}",f"# Unparsed: {coverage.unparsed}",f"# Source Unsupported: {coverage.unsupported}",f"# Coverage: {coverage.coverage_percent:.2f}%","#","# Reference Integrity",f"# References Checked: {integrity.total_references}",f"# Resolved: {integrity.resolved_references}",f"# Unresolved: {integrity.unresolved_references}",f"# Warnings: {integrity.warnings}",f"# Blocking Findings: {integrity.blocking_findings}","#","# Semantic Compatibility",*[f"# {name.replace('_',' ').title()}: {cp2[name]}" for name in ("EXACT","SUPPORTED","PARTIAL","MANUAL_REVIEW","UNSUPPORTED","VERSION_NOT_VERIFIED")],"#","# Conversion Summary",f"# Generated: {summary['generated']}",f"# Manual Review: {summary['manual_review']}",f"# Unsupported: {summary['unsupported']}",f"# Version Not Verified: {summary['version_not_verified']}","#"]
     header += [f"# {name}: {value['generated']} generated / {value['review']} review" for name,value in categories.items()]
     review=[]
     for item in plan.compatibility:

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from app.core.models import Vendor
-from .sources import CiscoAsaSourceAdapter, FortiGateSourceAdapter, MigrationSourceAdapter
+from .sources import CiscoAsaSourceAdapter, FortiGateSourceAdapter, JuniperSrxSourceAdapter, MigrationSourceAdapter
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,7 @@ class VendorProfile:
 QUICK_CONVERT_PROFILES = (
     VendorProfile(Vendor.ASA,"Cisco ASA",QuickConvertRole.SOURCE,("9.20","9.22","9.24")),
     VendorProfile(Vendor.FORTIGATE,"FortiGate",QuickConvertRole.SOURCE,("7.4","7.6")),
+    VendorProfile(Vendor.JUNIPER_SRX,"Juniper SRX",QuickConvertRole.SOURCE,("23.4R2",)),
     VendorProfile(Vendor.PALO_ALTO,"Palo Alto Networks",QuickConvertRole.TARGET,("11.1",),("LOCAL_FIREWALL",)),
 )
 
@@ -33,6 +34,7 @@ QUICK_CONVERT_PROFILES = (
 SUPPORTED_MIGRATION_PAIRS = {
     (Vendor.ASA, Vendor.PALO_ALTO): MigrationPair(CiscoAsaSourceAdapter, "PaloAltoRenderer", frozenset({"policy", "nat", "route"}), "asa-to-pan", frozenset({"asa-9.20","asa-9.22","asa-9.24"}), frozenset({"panos-11.1","panos-12.1"})),
     (Vendor.FORTIGATE, Vendor.PALO_ALTO): MigrationPair(FortiGateSourceAdapter, "PaloAltoRenderer", frozenset({"policy", "nat", "vip", "route"}), "fortigate-to-pan", frozenset({"fortios-7.4","fortios-7.6"}), frozenset({"panos-11.1","panos-12.1"})),
+    (Vendor.JUNIPER_SRX, Vendor.PALO_ALTO): MigrationPair(JuniperSrxSourceAdapter,"PaloAltoRenderer",frozenset({"policy","nat","route"}),"srx-to-pan",frozenset({"junos-23.4R2"}),frozenset({"panos-11.1"})),
 }
 
 

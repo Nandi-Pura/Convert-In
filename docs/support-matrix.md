@@ -1,5 +1,18 @@
 # Version-aware support matrix
 
+## Q5 platform status
+
+| Platform/domain | Parser | CP0 | CP1 | CP2 | Renderer | Quick Convert |
+|---|---|---|---|---|---|---|
+| Juniper SRX / firewall / Junos 23.4R2 | Set-style MVP | Yes | Yes | Bounded to PAN-OS 11.1 | PAN target only | Source yes |
+| Cisco IOS/IOS-XE / router | No; foundation | Model foundation | Foundation | No | No | No |
+| Cisco IOS/IOS-XE/NX-OS / switch | No; foundation | Model foundation | Foundation | No | No | No |
+| Aruba AOS-CX / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |
+| Juniper Junos / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |
+| Huawei VRP / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |
+
+SRX normalization covers set-style zones/interface membership, interface addresses, scoped address entries and sets, explicit TCP/UDP applications and application sets, basic security policy match/action/logging/order/inactive state, global static routes, and NAT recognition. Hierarchical syntax, host-inbound services, schedulers, routing instances, advanced application fields, and advanced policy actions are unparsed or source-unsupported. Address-book scope is preserved in vendor metadata; ambiguous duplicate names block CP1 rather than flattening silently. Zones remain explicit mappings. NAT always remains non-generated.
+
 ## Quick Convert Q1
 
 CP0 Source Extraction Coverage is supported for the bounded ASA and FortiGate parser scopes. PAN-OS XML CP0 is not implemented. CP0 accounts parser extraction only; it does not expand or score target generation support.

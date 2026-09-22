@@ -44,7 +44,7 @@ def mappings():
     return MigrationMappings(interfaces=[InterfaceMapping(source_interface="lan",source_nameif="lan",target_interface="ethernet1/2",target_zone="trust",confirmed=True),InterfaceMapping(source_interface="wan1",source_nameif="wan1",target_interface="ethernet1/1",target_zone="untrust",confirmed=True)])
 
 def test_pair_registry_and_basic_fortigate_plan_review_validation():
-    assert {(a.value,b.value) for a,b in SUPPORTED_MIGRATION_PAIRS}=={("cisco_asa","paloalto"),("fortigate","paloalto")}
+    assert {(a.value,b.value) for a,b in SUPPORTED_MIGRATION_PAIRS}=={("cisco_asa","paloalto"),("fortigate","paloalto"),("juniper_srx","paloalto")}
     cfg=parse_config(FORTI,Vendor.FORTIGATE); plan=MigrationPlanner().plan(cfg,mappings()); renderer=PaloAltoRenderer(); lines,report=renderer.render(plan); review=build_review(cfg,plan,renderer.commands)
     assert plan.source_vendor==Vendor.FORTIGATE and report.total_entities==report.generated_entities+report.skipped_entities
     assert not lines

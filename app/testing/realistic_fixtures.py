@@ -26,3 +26,11 @@ def fortigate(tier:str)->str:
     for i in range(n.policies): out += [f" edit {i+1}",f'  set name "Ordered Policy {i+1}"','  set srcintf "TRUST"','  set dstintf "wan1"',f'  set srcaddr "APP_{i%n.objects:04}"','  set dstaddr "all"',f'  set service "TCP_{i%n.services:04}"',"  set action accept",f'  set comments "synthetic order {i+1}"',*( ["  set nat enable"] if i==0 else [])," next"]
     out += [" edit 9999",'  set name "Disabled synthetic"','  set srcintf "TRUST"','  set dstintf "wan1"','  set srcaddr "MISSING_OBJECT"','  set dstaddr "all"','  set service "ALL"','  set status disable'," next","end","config router static"," edit 1","  set dst 10.240.0.0 255.255.0.0","  set gateway 192.168.255.1",'  set device "wan1"'," next","end","config system sdwan","end"]
     return "\n".join(out)+"\n"
+
+def juniper_srx(tier:str)->str:
+    n=TIERS[tier]; out=["## Last changed: synthetic Junos: 23.4R2","set security zones security-zone trust interfaces ge-0/0/0.0","set security zones security-zone untrust interfaces ge-0/0/1.0"]
+    for i in range(n.objects): out.append(f"set security address-book global address APP_{i:04} 10.{i//65536}.{(i//256)%256}.{i%256}/32")
+    for i in range(n.services): out += [f"set applications application TCP_{i:04} protocol tcp",f"set applications application TCP_{i:04} destination-port {10000+i}"]
+    for i in range(n.policies): out += [f"set security policies from-zone trust to-zone untrust policy P{i:04} match source-address any",f"set security policies from-zone trust to-zone untrust policy P{i:04} match destination-address APP_{i%n.objects:04}",f"set security policies from-zone trust to-zone untrust policy P{i:04} match application TCP_{i%n.services:04}",f"set security policies from-zone trust to-zone untrust policy P{i:04} then permit"]
+    out += ["set security nat source rule-set OUT rule PAT then source-nat interface","set security unknown synthetic"]
+    return "\n".join(out)+"\n"

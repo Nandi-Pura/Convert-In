@@ -20,6 +20,7 @@ from app.core.versions import resolve_context
 from app.core.versions.models import VersionContext
 from app.core.pan_lab import PanLabValidationResult
 from app.core.reference_integrity import ReferenceIntegrityValidator
+from app.core.domain_detection import detect_domain
 from app.core.migration.quick_convert import convert as quick_convert, detect_source, profiles as quick_profiles, safe_filename
 
 router = APIRouter(prefix="/api")
@@ -41,7 +42,8 @@ def convert_configuration(config:str=Form(...),source_vendor:str=Form("auto"),so
 def detect_configuration(config:str=Form(...)):
     if len(config.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds 5 MiB limit")
     detected,version=detect_source(config)
-    return {"vendor":detected.vendor.value,"version":version,"confidence":detected.confidence}
+    domain=detect_domain(config)
+    return {"vendor":detected.vendor.value,"version":version,"confidence":detected.confidence,"domain":domain.primary.value if domain.primary else None,"capabilities":[x.value for x in sorted(domain.capabilities,key=lambda x:x.value)],"ambiguous_domain":domain.ambiguous}
 
 @router.get("/convert/{project_id}/download")
 def download_converted_config(project_id:str):

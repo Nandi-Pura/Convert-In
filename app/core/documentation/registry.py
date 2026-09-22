@@ -19,7 +19,7 @@ def documentation_reference(reference_id:str)->DocumentationReference:
     except KeyError as exc: raise ValueError(f"Unknown documentation reference: {reference_id}") from exc
 
 def validate_documentation_registry():
-    allowed={"www.cisco.com","cisco.com","docs.fortinet.com","docs.paloaltonetworks.com"}
+    allowed={"www.cisco.com","cisco.com","docs.fortinet.com","docs.paloaltonetworks.com","www.juniper.net","juniper.net"}
     errors=[]
     for ref in DOCUMENTATION_REFERENCES.values():
         if ref.official_url.host not in allowed: errors.append(f"{ref.id}: unofficial domain")

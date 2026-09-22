@@ -34,5 +34,7 @@ for family in ("11.1","12.1"):
         semantics={"address":"PANOS-11.1-ADDRESSES","address_group":"PANOS-11.1-ADDRESS-GROUPS","service":"PANOS-11.1-SERVICES","service_group":"PANOS-11.1-SERVICE-GROUPS","route":"PANOS-11.1-STATIC-ROUTES"}
         for name,semantic in semantics.items(): caps[name]=_cap([semantic,cli])
     PROFILES[f"panos-{family}"]=VersionProfile(id=f"panos-{family}",vendor=Vendor.PALO_ALTO,os_name="PAN-OS",version_family=family,documentation_refs=refs,capabilities=caps,tested=family=="11.1")
+refs={"address":"JUNOS-ADDRESS-BOOKS","address_group":"JUNOS-ADDRESS-BOOKS","service":"JUNOS-CUSTOM-APPLICATIONS","service_group":"JUNOS-CUSTOM-APPLICATIONS","security_policy":"JUNOS-SECURITY-POLICIES","route":"JUNOS-STATIC-ROUTES"}
+PROFILES["junos-23.4R2"]=VersionProfile(id="junos-23.4R2",vendor=Vendor.JUNIPER_SRX,os_name="Junos OS",version_family="23.4R2",documentation_refs=["JUNOS-23.4R2-RELEASE",*refs.values()],capabilities={name:_cap([ref]) for name,ref in refs.items()}|{name:_cap(["JUNOS-NAT-OVERVIEW"],S.DOCUMENTED_NOT_IMPLEMENTED) for name in ("source_nat","destination_nat","static_nat")},tested=True,known_limitations=["Set-style only. NAT recognized but never generated. Scoped address-book ambiguity blocks generation."])
 
 def version_profile(vendor:Vendor,family:str|None): return next((x for x in PROFILES.values() if x.vendor==vendor and x.version_family==family),None)
