@@ -6,6 +6,7 @@ from pathlib import Path
 from app.core.models import ExtractionCoverageReport, Severity, Vendor
 from app.core.parsing import detect_vendor, parse_config
 from app.core.renderers import PaloAltoRenderer
+from app.core.reference_integrity import ReferenceIntegrityReport, ReferenceIntegrityValidator
 from app.core.versions import resolve_context, version_profile
 from .mappings import default_mappings
 from .models import CompatibilityStatus, TargetManagementMode
@@ -23,6 +24,7 @@ class QuickConvertResult:
     categories: dict[str,dict[str,int]]
     warnings: list[str]
     extraction_coverage: ExtractionCoverageReport
+    reference_integrity: ReferenceIntegrityReport
 
 def profiles():
     return [{"vendor":x.vendor.value,"label":x.label,"role":x.role.value,"versions":list(x.versions),"management_modes":list(x.management_modes)} for x in QUICK_CONVERT_PROFILES]
@@ -54,8 +56,9 @@ def convert(text:str,source_vendor:str,source_version:str,target_vendor:str="pal
     if any(x.severity==Severity.ERROR for x in cfg.warnings): raise ValueError("Configuration has blocking parser errors. Open Advanced Workbench for recovery details.")
     normalized=sum(len(x) for x in (cfg.interfaces,cfg.zones,cfg.addresses,cfg.address_groups,cfg.services,cfg.service_groups,cfg.security_policies,cfg.nat_policies,cfg.static_routes,cfg.vpn_objects))
     if not normalized: raise ValueError("No supported firewall constructs were parsed. Check the vendor, version, and configuration syntax.")
+    integrity=ReferenceIntegrityValidator().validate(cfg)
     mappings=default_mappings(cfg)
-    plan=MigrationPlanner().plan(cfg,mappings,resolve_context(text,vendor,selected),resolve_context("",Vendor.PALO_ALTO,"11.1"))
+    plan=MigrationPlanner().plan(cfg,mappings,resolve_context(text,vendor,selected),resolve_context("",Vendor.PALO_ALTO,"11.1"),integrity)
     renderer=PaloAltoRenderer(); commands,report=renderer.render(plan)
     if report.errors: raise ValueError("Candidate generation was blocked: "+" ".join(report.errors))
     generated={x.entity_id for x in renderer.commands}
@@ -70,7 +73,7 @@ def convert(text:str,source_vendor:str,source_version:str,target_vendor:str="pal
         if items: categories[label]={"generated":sum(states[x.entity_id]=="GENERATED" for x in items),"review":sum(states[x.entity_id]!="GENERATED" for x in items)}
     summary={"generated":counts["GENERATED"],"manual_review":counts["MANUAL_REVIEW"],"unsupported":counts["UNSUPPORTED"],"version_not_verified":counts["VERSION_NOT_VERIFIED"],"total":len(plan.compatibility)}
     coverage=cfg.extraction_coverage
-    header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Source Vendor: {'Cisco ASA' if vendor==Vendor.ASA else 'FortiGate'}",f"# Source Version: {selected}","# Target Vendor: Palo Alto Networks","# Target Version: PAN-OS 11.1","# Management Mode: LOCAL_FIREWALL","#","# Generated locally.","# No deployment performed.","#","# Source Extraction Coverage",f"# Semantic Constructs: {coverage.semantic_total}",f"# Normalized: {coverage.normalized}",f"# Recovered: {coverage.recovered}",f"# Unparsed: {coverage.unparsed}",f"# Source Unsupported: {coverage.unsupported}",f"# Coverage: {coverage.coverage_percent:.2f}%","#","# Conversion Summary",f"# Generated: {summary['generated']}",f"# Manual Review: {summary['manual_review']}",f"# Unsupported: {summary['unsupported']}",f"# Version Not Verified: {summary['version_not_verified']}","#"]
+    header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Source Vendor: {'Cisco ASA' if vendor==Vendor.ASA else 'FortiGate'}",f"# Source Version: {selected}","# Target Vendor: Palo Alto Networks","# Target Version: PAN-OS 11.1","# Management Mode: LOCAL_FIREWALL","#","# Generated locally.","# No deployment performed.","#","# Source Extraction Coverage",f"# Semantic Constructs: {coverage.semantic_total}",f"# Normalized: {coverage.normalized}",f"# Recovered: {coverage.recovered}",f"# Unparsed: {coverage.unparsed}",f"# Source Unsupported: {coverage.unsupported}",f"# Coverage: {coverage.coverage_percent:.2f}%","#","# Reference Integrity",f"# References Checked: {integrity.total_references}",f"# Resolved: {integrity.resolved_references}",f"# Unresolved: {integrity.unresolved_references}",f"# Warnings: {integrity.warnings}",f"# Blocking Findings: {integrity.blocking_findings}","#","# Conversion Summary",f"# Generated: {summary['generated']}",f"# Manual Review: {summary['manual_review']}",f"# Unsupported: {summary['unsupported']}",f"# Version Not Verified: {summary['version_not_verified']}","#"]
     header += [f"# {name}: {value['generated']} generated / {value['review']} review" for name,value in categories.items()]
     review=[]
     for item in plan.compatibility:
@@ -78,9 +81,13 @@ def convert(text:str,source_vendor:str,source_version:str,target_vendor:str="pal
         if state=="GENERATED": continue
         reason=" ".join(item.reasons) or "Target command omitted by the current documented scope."
         review += ["#",f"# [{state}] {CATEGORY_LABELS.get(item.entity_type,item.entity_type)}: {item.source_name}","# Target command omitted.",f"# Reason: {reason}"]
+    for finding in integrity.findings:
+        if finding.blocking:
+            path=" → ".join(finding.dependency_path)
+            review += ["#",f"# [MANUAL_REVIEW] {finding.source_entity_type.replace('_',' ').title()}: {finding.source_entity_name}","# Target command omitted.","# Reference integrity blocked generation.",f"# {finding.reason} Dependency: {path}"]
     for item in cfg.unparsed_constructs:
         review += ["#",f"# [MANUAL_REVIEW] Unparsed construct at line {item.line_number or 'unknown'}","# Source text omitted.",f"# Reason: {item.reason}"]
     if cfg.security_policies: review += ["#","# [MANUAL_REVIEW] Security rule ordering","# Source rule ordering intent was preserved for review.","# No automatic target move operation was executed."]
     lines=header+["#"]+commands+review
     warnings=[x.message for x in cfg.warnings]+plan.advisories
-    return QuickConvertResult(vendor,selected,lines,summary,categories,warnings,coverage)
+    return QuickConvertResult(vendor,selected,lines,summary,categories,warnings,coverage,integrity)

@@ -18,7 +18,9 @@ def test_vendor_quick_convert_is_accounted_and_reviewable(vendor):
     assert candidate.startswith("# Convert-In\n# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED")
     assert result.summary["total"]==sum(result.summary[x] for x in ("generated","manual_review","unsupported","version_not_verified"))
     assert result.extraction_coverage.semantic_total==result.extraction_coverage.normalized+result.extraction_coverage.recovered+result.extraction_coverage.unparsed+result.extraction_coverage.unsupported
+    assert result.reference_integrity.total_entities==result.summary["total"]
     assert "# Source Extraction Coverage" in candidate and "# Semantic Constructs:" in candidate
+    assert "# Reference Integrity" in candidate and "# Blocking Findings:" in candidate
     assert "# Addresses:" in candidate and "# [" in candidate
     assert not any(line.startswith("set rulebase nat") for line in result.lines)
 
@@ -54,6 +56,7 @@ def test_api_file_contract_and_download_isolation(tmp_path,monkeypatch):
     response=client.post("/api/convert",data={"config":text,"source_vendor":"fortigate","source_version":"7.4","target_vendor":"paloalto","target_version":"11.1","management_mode":"LOCAL_FIREWALL","source_filename":"../../unsafe config.cfg"})
     assert response.status_code==200; data=response.json()
     assert data["extraction_coverage"]["semantic_total"] and data["extraction_coverage"]["coverage_percent"] is not None
+    assert "blocking_findings" in data["reference_integrity"]
     assert data["candidate_filename"]=="unsafe-config-to-panos-11.1.set"
     download=client.get(data["download_url"])
     assert download.status_code==200 and "source.cfg" not in download.text
@@ -65,3 +68,15 @@ def test_paste_size_limit(tmp_path,monkeypatch):
 
 def test_safe_filename():
     assert safe_filename("../a b.cfg")=="a-b-to-panos-11.1.set"
+
+def test_blocking_reference_suppresses_only_dependent_entity():
+    text="""ASA Version 9.20
+object network SAFE
+ host 192.0.2.1
+access-list EDGE extended permit ip object MISSING any
+"""
+    result=convert(text,"cisco_asa","9.20"); candidate="\n".join(result.lines)
+    assert result.reference_integrity.blocking_findings==1
+    assert "set address SAFE" in candidate
+    assert "set rulebase security rules EDGE" not in candidate
+    assert "Reference integrity blocked generation." in candidate

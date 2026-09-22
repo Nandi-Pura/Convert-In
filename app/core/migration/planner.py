@@ -9,7 +9,7 @@ from app.core.versions import emitted_capability_fully_evidenced,evidence_state,
 from app.core.versions.models import CapabilityStatus,VersionContext
 
 class MigrationPlanner:
-    def plan(self,cfg,mappings:MigrationMappings,source_version:VersionContext|None=None,target_version:VersionContext|None=None):
+    def plan(self,cfg,mappings:MigrationMappings,source_version:VersionContext|None=None,target_version:VersionContext|None=None,reference_integrity=None):
         source=cfg.metadata.get("source_vendor")
         source=Vendor(source); pair=migration_pair(source,Vendor.PALO_ALTO); cfg=pair.source_adapter().adapt(cfg)
         entities=cfg.interfaces+cfg.zones+cfg.addresses+cfg.address_groups+cfg.services+cfg.service_groups+cfg.security_policies+cfg.nat_policies+cfg.static_routes+cfg.vpn_objects
@@ -109,6 +109,12 @@ class MigrationPlanner:
         blocked=[x.message for x in cfg.warnings if x.severity==Severity.ERROR]
         if not source_profile: advisories.append("Source version not verified. Select a verified source OS version before candidate generation.")
         if not target_profile: blocked.append("Explicit verified target PAN-OS version is required.")
+        if reference_integrity:
+            blocked_ids=reference_integrity.blocked_entity_ids
+            generate=[x for x in generate if x.entity_id not in blocked_ids]
+            for item in compatibility:
+                if item.entity_id in blocked_ids:
+                    item.status=S.MANUAL_REVIEW; item.reasons.append("Reference integrity blocked generation.")
         return MigrationPlan(source_vendor=source,mappings=mappings,compatibility=compatibility,names=names,generate=generate,blocked=blocked,advisories=advisories,source_version=source_version,target_version=target_version)
 
     @staticmethod
