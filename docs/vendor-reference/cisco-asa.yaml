@@ -144,6 +144,18 @@
     "notes": "Official version-specific source semantics and syntax for emitted object and service entities."
   },
   {
+    "id": "ASA-9.24-ACCESS-RULES",
+    "vendor": "cisco_asa",
+    "product": "Cisco Secure Firewall ASA",
+    "version_family": "9.24",
+    "document_type": "CONFIGURATION_GUIDE",
+    "title": "Cisco Secure Firewall ASA Firewall CLI Configuration Guide, 9.24(x) - Access Rules",
+    "topic": "ACL ordering, direction, and access-group interface binding",
+    "official_url": "https://www.cisco.com/c/en/us/td/docs/security/asa/asa924/configuration/firewall/asa-924-firewall-config/access-rules.html",
+    "verified_at": "2026-09-21",
+    "notes": "Review-only evidence. ACL and access-group generation remains disabled without explicit target binding context."
+  },
+  {
     "id": "ASA-9.24-STATIC-ROUTES",
     "vendor": "cisco_asa",
     "product": "Cisco Secure Firewall ASA",

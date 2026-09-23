@@ -30,6 +30,7 @@ Current capabilities:
 - semantic migration review
 - candidate PAN-OS set-command generation
 - bounded FortiOS 7.6.4 candidate generation from normalized firewall IR
+- bounded Cisco ASA 9.24 object and service candidate generation from normalized firewall IR
 
 > **Generated configurations require engineer review.** Convert-In does not validate against a device or deploy configurations.
 
@@ -56,7 +57,7 @@ Synthetic screenshots: [firewall conversion](docs/images/workbench-firewall.png)
 | Migration | Cisco ASA → PAN-OS | Candidate generation |
 | Migration | FortiGate → PAN-OS | Alpha / candidate |
 | Migration | ASA, FortiGate, PAN-OS, or SRX → FortiOS 7.6.4 | Bounded candidate generation |
-| Supported generation target | PAN-OS 11.1 or FortiOS 7.6.4 | Bounded; engineer review required |
+| Supported generation target | PAN-OS 11.1, FortiOS 7.6.4, or Cisco ASA 9.24 | Bounded; engineer review required |
 | Generated subset | Addresses/groups, services/groups, supported security policies, supported static routes | Documentation-gated |
 | Review / non-generated | NAT, ambiguous target context, interface/zone mapping, advanced semantics, unverified versions | Inline comments |
 | Blocked | PAN-OS 12.1, Panorama, live deployment | Not supported by Quick Convert |

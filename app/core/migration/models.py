@@ -144,6 +144,11 @@ class FortiOSCommand(BaseModel):
     operations:list[FortiOSOperation]; capability_id:str; evidence_refs:list[str]
     text:str=""
 
+class AsaCommand(BaseModel):
+    entity_id:str; source_entity_id:str; mode:str; name:str
+    operations:list[list[str]]; capability_id:str; evidence_refs:list[str]
+    text:str=""
+
 class RenderResult(BaseModel):
     status:str; generated_lines:int; generated_entities:int; skipped_entities:int; manual_review:int; unsupported:int
     candidate_path:str|None=None; report:MigrationReport; candidate:str|None=None

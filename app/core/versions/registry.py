@@ -13,6 +13,7 @@ for family in ("9.20","9.22","9.24"):
     for name in ("static_source_nat","dynamic_ip_and_port","identity_nat","twice_nat"):
         PROFILES[f"asa-{family}"].capabilities[name]=_cap(nat_ref,S.DOCUMENTED_NOT_IMPLEMENTED if nat_ref else S.VERSION_NOT_VERIFIED)
     PROFILES[f"asa-{family}"].capabilities["security_policy"]=_cap([f"ASA-{family}-FIREWALL"])
+PROFILES["asa-9.24-target"]=VersionProfile(id="asa-9.24-target",vendor=Vendor.ASA,os_name="Cisco ASA",version_family="9.24",documentation_refs=["ASA-9.24-ACCESS-OBJECTS","ASA-9.24-ACCESS-RULES","ASA-9.24-STATIC-ROUTES"],capabilities={name:_cap(["ASA-9.24-ACCESS-OBJECTS"],test_refs=["tests/test_q9_asa.py"]) for name in ("address","address_group","service","service_group")}|{"security_policy":_cap(["ASA-9.24-ACCESS-RULES"],S.DOCUMENTED_NOT_IMPLEMENTED),"route":_cap(["ASA-9.24-STATIC-ROUTES"],S.DOCUMENTED_NOT_IMPLEMENTED)},tested=True,known_limitations=["IPv4 objects only. ACLs, access-group bindings, interfaces, routes, NAT, and deployment are not generated."])
 for family in ("7.4","7.6"):
     vip=f"FORTIOS-{family}-STATIC-VIP"; snat=f"FORTIOS-{family}-DYNAMIC-SNAT"
     cli=f"FORTIOS-{family}-CLI-REFERENCE"
@@ -43,3 +44,4 @@ iosxe_refs={"iosxe.interface.ipv4":"IOSXE-IP-ADDRESSING","iosxe.vrf":"IOSXE-PROT
 PROFILES["iosxe-17.12.1"]=VersionProfile(id="iosxe-17.12.1",vendor=Vendor.CISCO_IOSXE,os_name="Cisco IOS XE",version_family="17.12.1",documentation_refs=["IOSXE-17.12.1-COMMANDS",*set(iosxe_refs.values())],capabilities={name:_cap([ref]).model_copy(update={"renderer_support":False,"test_refs":["tests/test_q6_iosxe_router.py"]}) for name,ref in iosxe_refs.items()},tested=True,known_limitations=["Parser and CP0/CP1 analysis only. No router renderer or conversion path.","Advanced routing features remain source-unsupported."])
 
 def version_profile(vendor:Vendor,family:str|None): return next((x for x in PROFILES.values() if x.vendor==vendor and x.version_family==family),None)
+def target_version_profile(vendor:Vendor,family:str|None): return PROFILES.get("asa-9.24-target") if vendor==Vendor.ASA and family=="9.24" else version_profile(vendor,family)

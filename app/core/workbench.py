@@ -65,7 +65,7 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
                 related_findings=[message for key in related_ids for message in findings[key]]
                 entities.append(_row(entity,kind,_snippet(lines,entity),_normalized(entity),"BLOCKED" if blocked else "READY","CP1: BLOCKED" if blocked else "CP1: PASS",related_findings))
         return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,None,entities,None)
-    integrity=ReferenceIntegrityValidator().validate(cfg); target_vendor={"firewall-paloalto-panos":Vendor.PALO_ALTO,"firewall-fortinet-fortigate":Vendor.FORTIGATE}.get(target_profile.id)
+    integrity=ReferenceIntegrityValidator().validate(cfg); target_vendor={"firewall-paloalto-panos":Vendor.PALO_ALTO,"firewall-fortinet-fortigate":Vendor.FORTIGATE,"firewall-cisco-asa":Vendor.ASA}.get(target_profile.id)
     if not target_vendor: raise ValueError("Target firewall renderer is not implemented.")
     source=resolve_context(text,vendor,source_version); target=resolve_context("",target_vendor,target_version)
     plan=MigrationPlanner().plan(cfg,MigrationMappings.model_validate(mappings or default_mappings(cfg)),source,target,integrity,target_vendor)
@@ -90,6 +90,6 @@ def _row(entity,kind,source,target,status,detail,findings,target_title=None,comm
 
 def _result(mode,source,target,source_version,target_version,cp0,cp1,cp2,entities,candidate):
     profile=lambda p,v:{"id":p.id,"vendor":p.vendor.value,"platform":p.platform.value,"domain":p.domain.value,"version":v,"capability":p.target_capability.value}
-    slug={"PAN_OS":"panos","FORTIGATE":"fortios"}.get(target.platform.value,target.platform.value.lower().replace("_","-"))
-    extension="conf" if target.platform.value=="FORTIGATE" else "set"
+    slug={"PAN_OS":"panos","FORTIGATE":"fortios","ASA":"asa"}.get(target.platform.value,target.platform.value.lower().replace("_","-"))
+    extension="conf" if target.platform.value in {"FORTIGATE","ASA"} else "set"
     return {"mode":mode,"renderer_available":bool(target.target_renderer),"source_profile":profile(source,source_version),"target_profile":profile(target,target_version),"cp0":cp0.model_dump(mode="json"),"cp1":cp1.model_dump(mode="json"),"cp2":cp2,"cp0_summary":cp0.model_dump(mode="json"),"cp1_summary":cp1.model_dump(mode="json"),"cp2_summary":cp2,"entities":entities,"candidate":candidate,"candidate_filename":f"candidate-{slug}-{target_version}.{extension}" if candidate else None}
