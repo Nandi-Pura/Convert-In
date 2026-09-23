@@ -1,11 +1,11 @@
 # Version-aware support matrix
 
-## Q5 platform status
+## Platform status
 
 | Platform/domain | Parser | CP0 | CP1 | CP2 | Renderer | Quick Convert |
 |---|---|---|---|---|---|---|
 | Juniper SRX / firewall / Junos 23.4R2 | Set-style MVP | Yes | Yes | Bounded to PAN-OS 11.1 | PAN target only | Source yes |
-| Cisco IOS/IOS-XE / router | No; foundation | Model foundation | Foundation | No | No | No |
+| Cisco IOS-XE 17.12.1 / router | Q6 supported subset | Yes | Yes | Not applicable; no target | None | No |
 | Cisco IOS/IOS-XE/NX-OS / switch | No; foundation | Model foundation | Foundation | No | No | No |
 | Aruba AOS-CX / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |
 | Juniper Junos / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |

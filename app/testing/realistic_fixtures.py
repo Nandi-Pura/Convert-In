@@ -34,3 +34,12 @@ def juniper_srx(tier:str)->str:
     for i in range(n.policies): out += [f"set security policies from-zone trust to-zone untrust policy P{i:04} match source-address any",f"set security policies from-zone trust to-zone untrust policy P{i:04} match destination-address APP_{i%n.objects:04}",f"set security policies from-zone trust to-zone untrust policy P{i:04} match application TCP_{i%n.services:04}",f"set security policies from-zone trust to-zone untrust policy P{i:04} then permit"]
     out += ["set security nat source rule-set OUT rule PAT then source-nat interface","set security unknown synthetic"]
     return "\n".join(out)+"\n"
+
+def iosxe_router(tier:str)->str:
+    n=TIERS[tier]; out=["Cisco IOS XE Software, Version 17.12.1","hostname SYNTHETIC","vrf definition CUSTOMER"]
+    for i in range(n.objects): out += [f"interface Loopback{i}",f" ip address 10.{i//65536}.{(i//256)%256}.{i%256} 255.255.255.255"]
+    for i in range(n.policies): out.append(f"ip route 172.{i//65536}.{(i//256)%256}.{i%256} 255.255.255.255 192.0.2.1")
+    for i in range(n.services): out.append(f"ip prefix-list PL seq {i*5+5} permit 10.0.0.0/8 ge 16 le 24")
+    out += ["route-map EDGE permit 10"," match ip address prefix-list PL","router bgp 65000"]
+    for i in range(n.objects): out.append(f" neighbor 192.0.{i//256}.{i%256} remote-as {65100+i}")
+    return "\n".join(out)+"\n"

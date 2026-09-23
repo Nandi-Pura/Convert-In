@@ -2,7 +2,7 @@
 
 Convert-In separates `FirewallConfig`, `RouterConfig`, and `SwitchConfig`. Vendor syntax enters a domain parser, then CP0 extraction accounting, CP1 reference validation, domain-specific CP2 compatibility, and an optional target renderer. No pairwise translators exist.
 
-`RouterConfig` currently provides bounded structured models for interfaces, VRFs, static routes, prefix lists, route policies, OSPF, and BGP. `SwitchConfig` provides VLANs, ports, LAGs, SVIs, STP metadata, and ACL references. These are IR foundations only: no router or switch vendor parser, CP1/CP2 contract, renderer, or Quick Convert path is claimed.
+`RouterConfig` provides bounded structured models for interfaces, VRFs, static routes, prefix lists, route policies, OSPF, and BGP. Cisco IOS-XE 17.12.1 is the first router parser, with router-specific CP0 and CP1 analysis. `SwitchConfig` remains an IR foundation for VLANs, ports, LAGs, SVIs, STP metadata, and ACL references. No router/switch renderer or Quick Convert path is claimed.
 
 The platform registry separates normalized vendor, platform, OS family, domain, explicit versions, parser, renderer, capabilities, and documentation IDs. Cisco IOS-XE/NX-OS, Aruba AOS-CX, Juniper Junos, and Huawei VRP router/switch entries intentionally have empty version sets until official version-specific evidence and fixtures exist.
 

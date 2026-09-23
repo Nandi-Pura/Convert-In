@@ -21,6 +21,7 @@ Current capabilities:
 
 - Cisco ASA, FortiGate, and Palo Alto PAN-OS XML parsing
 - Juniper SRX Junos 23.4R2 set-style source parsing and bounded PAN-OS candidate generation
+- Cisco IOS-XE 17.12.1 Router analysis: parser plus CP0/CP1 foundation; no router target rendering
 - separate RouterConfig and SwitchConfig foundations; no router/switch conversion claim
 - a normalized vendor-neutral firewall model
 - object and policy dependency visualization

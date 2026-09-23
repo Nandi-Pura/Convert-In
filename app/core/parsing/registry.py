@@ -4,8 +4,9 @@ from app.vendors.cisco_asa.parser import AsaParser
 from app.vendors.fortigate.parser import FortiGateParser
 from app.vendors.paloalto.parser import PaloAltoParser
 from app.vendors.juniper_srx.parser import JunosSrxParser
+from app.vendors.cisco_iosxe.parser import IosXeRouterParser
 
-PARSERS = {p.vendor: p for p in (AsaParser(), FortiGateParser(), PaloAltoParser(), JunosSrxParser())}
+PARSERS = {p.vendor: p for p in (AsaParser(), FortiGateParser(), PaloAltoParser(), JunosSrxParser(), IosXeRouterParser())}
 
 def detect_vendor(text: str) -> DetectionResult:
     result = max((p.detect(text) for p in PARSERS.values()), key=lambda x: x.confidence)

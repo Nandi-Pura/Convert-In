@@ -1,9 +1,17 @@
+from typing import Any
 from pydantic import BaseModel, Field
 
-from .firewall import ConfigDomain
+from .firewall import ConfigDomain, ExtractionCoverageReport, ParseIssue, Provenance, UnparsedConstruct
 
 
-class RouterInterface(BaseModel):
+class RouterEntity(BaseModel):
+    id: str = ""
+    name: str = ""
+    provenance: Provenance | None = None
+    vendor_extensions: dict[str, Any] = Field(default_factory=dict)
+
+
+class RouterInterface(RouterEntity):
     name: str
     addresses: list[str] = Field(default_factory=list)
     description: str | None = None
@@ -11,36 +19,47 @@ class RouterInterface(BaseModel):
     vrf: str | None = None
 
 
-class RouterVRF(BaseModel):
+class RouterVRF(RouterEntity):
     name: str
     route_distinguisher: str | None = None
 
 
-class RouterStaticRoute(BaseModel):
+class RouterStaticRoute(RouterEntity):
     destination: str
     next_hop: str
     vrf: str | None = None
     interface: str | None = None
+    distance: int | None = None
 
 
 class PrefixListEntry(BaseModel):
+    id: str
+    name: str
     sequence: int
     prefix: str
     action: str = "permit"
+    ge: int | None = None
+    le: int | None = None
+    provenance: Provenance | None = None
 
 
-class PrefixList(BaseModel):
+class PrefixList(RouterEntity):
     name: str
     entries: list[PrefixListEntry] = Field(default_factory=list)
 
 
 class RoutePolicyTerm(BaseModel):
+    id: str
     name: str
     prefix_lists: list[str] = Field(default_factory=list)
     action: str
+    sequence: int = 10
+    match_statements: list[str] = Field(default_factory=list)
+    set_statements: list[str] = Field(default_factory=list)
+    provenance: Provenance | None = None
 
 
-class RoutePolicy(BaseModel):
+class RoutePolicy(RouterEntity):
     name: str
     terms: list[RoutePolicyTerm] = Field(default_factory=list)
 
@@ -48,20 +67,24 @@ class RoutePolicy(BaseModel):
 class OSPFArea(BaseModel):
     area_id: str
     interfaces: list[str] = Field(default_factory=list)
+    networks: list[str] = Field(default_factory=list)
 
 
-class OSPFProcess(BaseModel):
+class OSPFProcess(RouterEntity):
     process_id: str
     vrf: str | None = None
     areas: list[OSPFArea] = Field(default_factory=list)
+    router_id: str | None = None
 
 
-class BGPNeighbor(BaseModel):
+class BGPNeighbor(RouterEntity):
     address: str
     remote_as: int | None = None
     peer_group: str | None = None
     route_policy_in: str | None = None
     route_policy_out: str | None = None
+    description: str | None = None
+    update_source: str | None = None
 
 
 class BGPNetwork(BaseModel):
@@ -69,11 +92,12 @@ class BGPNetwork(BaseModel):
     route_policy: str | None = None
 
 
-class BGPProcess(BaseModel):
+class BGPProcess(RouterEntity):
     local_as: int
     vrf: str | None = None
     neighbors: list[BGPNeighbor] = Field(default_factory=list)
     networks: list[BGPNetwork] = Field(default_factory=list)
+    router_id: str | None = None
 
 
 class RouterConfig(BaseModel):
@@ -86,6 +110,10 @@ class RouterConfig(BaseModel):
     route_policies: list[RoutePolicy] = Field(default_factory=list)
     ospf_processes: list[OSPFProcess] = Field(default_factory=list)
     bgp_processes: list[BGPProcess] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[ParseIssue] = Field(default_factory=list)
+    unparsed_constructs: list[UnparsedConstruct] = Field(default_factory=list)
+    extraction_coverage: ExtractionCoverageReport | None = None
 
 
 class VLAN(BaseModel):

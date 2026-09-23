@@ -28,7 +28,7 @@ class VendorPlatformProfile:
 PLATFORM_PROFILES=(
     VendorPlatformProfile(NetworkVendor.CISCO,Platform.ASA,"ASA",ConfigDomain.FIREWALL,("9.20","9.22","9.24"),"AsaParser","PaloAltoRenderer"),
     VendorPlatformProfile(NetworkVendor.JUNIPER,Platform.SRX,"Junos OS",ConfigDomain.FIREWALL,("23.4R2",),"JunosSrxParser",None,("addresses","applications","policies","zones","nat","static_routes"),("JUNOS-23.4R2-RELEASE","JUNOS-SECURITY-POLICIES","JUNOS-ADDRESS-BOOKS")),
-    VendorPlatformProfile(NetworkVendor.CISCO,Platform.IOS_XE,"IOS-XE",ConfigDomain.ROUTER,()),
+    VendorPlatformProfile(NetworkVendor.CISCO,Platform.IOS_XE,"IOS-XE",ConfigDomain.ROUTER,("17.12.1",),"IosXeRouterParser",None,("interface_ipv4","vrf","static_route","prefix_list","route_map","ospf","bgp_neighbor"),("IOSXE-17.12.1-COMMANDS",)),
     VendorPlatformProfile(NetworkVendor.CISCO,Platform.IOS_XE,"IOS-XE",ConfigDomain.SWITCH,()),
     VendorPlatformProfile(NetworkVendor.CISCO,Platform.NX_OS,"NX-OS",ConfigDomain.SWITCH,()),
     VendorPlatformProfile(NetworkVendor.ARUBA,Platform.AOS_CX,"AOS-CX",ConfigDomain.ROUTER,()),

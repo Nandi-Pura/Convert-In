@@ -9,6 +9,7 @@ class Vendor(StrEnum):
     FORTIGATE = "fortigate"
     PALO_ALTO = "paloalto"
     JUNIPER_SRX = "juniper_srx"
+    CISCO_IOSXE = "cisco_iosxe"
     UNKNOWN = "unknown"
 
 
