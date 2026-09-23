@@ -56,8 +56,16 @@ PLATFORM_PROFILES=(
 
 
 def platform_profile(profile_id:str,version:str|None=None):
-    return next((p for p in PLATFORM_PROFILES if p.id==profile_id and (version is None or version in p.supported_versions)),None)
+    profile=next((p for p in PLATFORM_PROFILES if p.id==profile_id),None)
+    if not profile or version is None or version in profile.supported_versions:return profile
+    from app.core.versions import exact_profile
+    return profile if profile.source_vendor and exact_profile(profile.source_vendor,version) else None
 
 
 def profiles_payload():
-    return [{**asdict(p),"vendor":p.vendor.value,"platform":p.platform.value,"domain":p.domain.value,"source_vendor":p.source_vendor.value if p.source_vendor else None,"target_capability":p.target_capability.value} for p in PLATFORM_PROFILES]
+    from app.core.versions import release_profiles
+    payload=[]
+    for p in PLATFORM_PROFILES:
+        versions=[v.model_dump(mode="json",include={"id","release_line","exact_version","display_version","version_status","latest_in_line","source_parser_available","target_renderer_available","target_capability","rank"}) for v in release_profiles(p.source_vendor)] if p.domain==ConfigDomain.FIREWALL and p.source_vendor else []
+        payload.append({**asdict(p),"vendor":p.vendor.value,"platform":p.platform.value,"domain":p.domain.value,"source_vendor":p.source_vendor.value if p.source_vendor else None,"target_capability":p.target_capability.value,"version_profiles":versions})
+    return payload

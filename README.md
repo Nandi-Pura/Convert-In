@@ -1,11 +1,11 @@
 # Convert-In
 
-Convert-In is a local multi-vendor, multi-domain configuration migration workbench.
+Convert-In supports cross-vendor and cross-version firewall migration through exact-version, evidence-gated profiles. It runs locally and also supports bounded router analysis and migration.
 
 ## Unified workbench
 
 1. Drop or paste a synthetic or sanitized Cisco ASA, FortiGate, or Juniper SRX configuration.
-2. Confirm the source vendor and OS version.
+2. Confirm the source vendor, release line, and exact OS release.
 3. Select a same-domain target independently of the source vendor.
 4. Convert when the selected target has an evidence-gated renderer. Otherwise use analysis mode.
 5. Review each entity's source, target or normalized form, semantic findings, and checkpoint status.
@@ -33,7 +33,7 @@ Current capabilities:
 - bounded Cisco ASA 9.24 object and service candidate generation from normalized firewall IR
 - bounded Juniper SRX Junos 23.4R2 candidate generation from normalized firewall IR
 
-Four core firewall target renderers are available as bounded, evidence-gated implementations. Actual semantic support varies by target capability and exact version. Source and target remain independently selected within one domain; target-specific CP2 keeps unsupported semantics visible for manual review.
+Four core firewall renderer implementations are available. Exact releases use independent evidence gates. A release note proves release existence, not renderer syntax. “Latest verified” means the latest known exact release in the audited release line from bundled metadata, not automatically tracked firmware.
 
 > **Generated configurations require engineer review.** Convert-In does not validate against a device or deploy configurations.
 

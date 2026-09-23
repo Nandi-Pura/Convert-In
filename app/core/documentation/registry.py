@@ -26,8 +26,8 @@ def validate_documentation_registry():
         if ref.official_url.scheme!="https": errors.append(f"{ref.id}: HTTPS required")
         if not ref.title.strip(): errors.append(f"{ref.id}: title required")
         if not ref.topic.strip(): errors.append(f"{ref.id}: topic required")
-    from app.core.versions.registry import PROFILES
-    for profile in PROFILES.values():
+    from app.core.versions.registry import PROFILES,RELEASE_PROFILES
+    for profile in (*PROFILES.values(),*RELEASE_PROFILES.values()):
         for ref in profile.documentation_refs:
             if ref not in DOCUMENTATION_REFERENCES: errors.append(f"{profile.id}: unknown profile reference {ref}")
         for name,capability in profile.capabilities.items():

@@ -1,4 +1,4 @@
 from .models import *
-from .registry import PROFILES,target_version_profile,version_profile
+from .registry import PROFILES,RELEASE_PROFILES,exact_profile,release_profiles,target_version_profile,version_profile
 from .resolver import detect_version,resolve_context,version_family
 from .capabilities import EMITTED_CAPABILITIES,assert_all_emitted_capabilities_fully_evidenced,capability_verified,emitted_capability_fully_evidenced,evidence_state

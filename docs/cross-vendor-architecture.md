@@ -16,9 +16,9 @@ Target├→ FortiOS 7.6.4 Renderer
       └→ Junos 23.4R2 Router Renderer
 ```
 
-`VendorPlatformProfile` records domain, vendor, platform, exact versions, parser, renderer, evidence profile, and capability state. A registered platform is selectable even when its renderer does not exist. In that case the workbench runs analysis and emits no target commands.
+`VendorPlatformProfile` records platform behavior. `VersionProfile` separately records release line, immutable exact version, lifecycle status, release evidence, and exact renderer availability. A registered release remains selectable without a renderer. In that case the workbench runs analysis and emits no target commands.
 
-Parser lookup uses the source profile. Renderer lookup uses domain, target vendor, target platform, and target version. No renderer lookup depends on source vendor identity. Conversion requires equal source and target domains.
+Parser lookup uses the source profile and exact source version. Renderer lookup uses domain, target vendor, target platform, and exact target version. No lookup accepts a wildcard or adjacent release. No renderer lookup depends on source vendor identity. Conversion requires equal source and target domains.
 
 Current target rendering is bounded: PAN-OS 11.1, FortiOS 7.6.4, Cisco ASA 9.24, and Juniper SRX 23.4R2 for firewall IR; Junos 23.4R2 for router IR. CP2 remains target-specific and evidence-gated. Missing version evidence returns `VERSION_NOT_VERIFIED`; missing mappings or semantic context returns `MANUAL_REVIEW`.
 

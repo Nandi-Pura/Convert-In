@@ -1,5 +1,5 @@
 from app.core.models import Vendor
-from .models import Capability,CapabilityStatus as S,VersionProfile
+from .models import Capability,CapabilityStatus as S,VersionProfile,VersionStatus as VS
 
 def _cap(refs,status=S.DOCUMENTED_IMPLEMENTED_TESTED,limitation=None,**evidence):
     verified=status==S.DOCUMENTED_IMPLEMENTED_TESTED
@@ -50,3 +50,22 @@ def target_version_profile(vendor:Vendor,family:str|None):
     if vendor==Vendor.ASA and family=="9.24": return PROFILES.get("asa-9.24-target")
     if vendor==Vendor.JUNIPER_SRX and family=="23.4R2": return PROFILES.get("junos-23.4R2-srx-target")
     return version_profile(vendor,family)
+
+# Release existence never enables rendering. Exact command evidence must register the renderer separately.
+AUDIT_DATE="2026-09-21"
+_release_specs=(
+    (Vendor.ASA,"ASA","9.24","9.24(10)",1,"ASA-9.24-RELEASE"),(Vendor.ASA,"ASA","9.23","9.23(1)",2,"ASA-9.23-RELEASE"),(Vendor.ASA,"ASA","9.22","9.22(3)",3,"ASA-9.22-RELEASE"),
+    (Vendor.FORTIGATE,"FORTIGATE","7.6","7.6.7",1,"FORTIOS-7.6.7-RELEASE"),(Vendor.FORTIGATE,"FORTIGATE","7.4","7.4.12",2,"FORTIOS-7.4.12-RELEASE"),(Vendor.FORTIGATE,"FORTIGATE","7.2","7.2.13",3,"FORTIOS-7.2.13-RELEASE"),
+    (Vendor.PALO_ALTO,"PAN_OS","12.2","12.2.3",1,"PANOS-12.2.3-RELEASE"),(Vendor.PALO_ALTO,"PAN_OS","12.1","12.1.6",2,"PANOS-12.1.6-RELEASE"),(Vendor.PALO_ALTO,"PAN_OS","11.2","11.2.9",3,"PANOS-11.2.9-RELEASE"),
+    (Vendor.JUNIPER_SRX,"SRX","25.4","25.4",1,"JUNOS-25.4-RELEASE"),(Vendor.JUNIPER_SRX,"SRX","25.2","25.2R1",2,"JUNOS-25.2R1-SRX-RELEASE"),(Vendor.JUNIPER_SRX,"SRX","24.4","24.4R2",3,"JUNOS-24.4R2-SRX-RELEASE"),
+)
+RELEASE_PROFILES={f"{vendor.value}-{exact}":VersionProfile(id=f"{vendor.value}-{exact}",vendor=vendor,os_name={Vendor.ASA:"Cisco ASA",Vendor.FORTIGATE:"FortiOS",Vendor.PALO_ALTO:"PAN-OS",Vendor.JUNIPER_SRX:"Junos OS"}[vendor],version_family=line,platform=platform,release_line=line,exact_version=exact,display_version=line,version_status=VS.LATEST_VERIFIED if vendor in {Vendor.ASA,Vendor.FORTIGATE} else VS.VERSION_NOT_VERIFIED,latest_in_line=vendor in {Vendor.ASA,Vendor.FORTIGATE},release_evidence_ids=[evidence],documentation_refs=[evidence],source_parser_available=True,target_renderer_available=False,audited_at=AUDIT_DATE,rank=rank) for vendor,platform,line,exact,rank,evidence in _release_specs}
+for key,profile_id,line,exact in (("cisco_asa-9.24","asa-9.24-target","9.24","9.24"),("fortigate-7.6.4","fortios-7.6.4","7.6","7.6.4"),("paloalto-11.1","panos-11.1","11.1","11.1"),("juniper_srx-23.4R2","junos-23.4R2-srx-target","23.4","23.4R2")):
+    old=PROFILES[profile_id]
+    RELEASE_PROFILES[key]=old.model_copy(update={"id":key,"platform":{"cisco_asa":"ASA","fortigate":"FORTIGATE","paloalto":"PAN_OS","juniper_srx":"SRX"}[old.vendor.value],"release_line":line,"exact_version":exact,"display_version":line,"version_status":VS.LEGACY_VERIFIED,"latest_in_line":False,"release_evidence_ids":old.documentation_refs[:1],"source_parser_available":True,"target_renderer_available":True,"target_capability":"BOUNDED_RENDERER","audited_at":AUDIT_DATE,"rank":99})
+
+def release_profiles(vendor:Vendor|None=None):
+    return sorted((p for p in RELEASE_PROFILES.values() if vendor is None or p.vendor==vendor),key=lambda p:(p.vendor.value,p.rank))
+
+def exact_profile(vendor:Vendor,exact_version:str):
+    return next((p for p in RELEASE_PROFILES.values() if p.vendor==vendor and p.exact_version==exact_version),None)

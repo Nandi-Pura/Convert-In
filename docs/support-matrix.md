@@ -1,5 +1,27 @@
 # Version-aware support matrix
 
+## Q11 exact firewall release audit
+
+Audit date: 2026-09-21. “Latest verified” is bounded to this bundled audit. Release evidence does not prove renderer syntax.
+
+| Vendor | Platform | Release line | Exact version | Version status | Source parser | Target renderer | Evidence state |
+|---|---|---|---|---|---|---|---|
+| Cisco | ASA | 9.24 | 9.24(10) | LATEST_VERIFIED | Exact metadata accepted | Not enabled | Release verified; exact command evidence required |
+| Cisco | ASA | 9.23 | 9.23(1) | LATEST_VERIFIED | Exact metadata accepted | Not enabled | Release verified; exact command evidence required |
+| Cisco | ASA | 9.22 | 9.22(3) | LATEST_VERIFIED | Exact metadata accepted | Not enabled | Release verified; exact command evidence required |
+| Fortinet | FortiGate | 7.6 | 7.6.7 | LATEST_VERIFIED | Exact metadata accepted | Not enabled | Release verified; exact command evidence required |
+| Fortinet | FortiGate | 7.4 | 7.4.12 | LATEST_VERIFIED | Exact metadata accepted | Not enabled | Release verified; exact command evidence required |
+| Fortinet | FortiGate | 7.2 | 7.2.13 | LATEST_VERIFIED | Exact metadata accepted | Not enabled | Release verified; exact command evidence required |
+| Fortinet | FortiGate | 7.6 | 7.6.4 | LEGACY_VERIFIED | Yes | Bounded | Exact release and command evidence bundled |
+| Palo Alto | PAN-OS | 12.2 | 12.2.3 candidate | VERSION_NOT_VERIFIED | Exact metadata accepted | Not enabled | Latest-in-line and command evidence incomplete |
+| Palo Alto | PAN-OS | 12.1 | 12.1.6 candidate | VERSION_NOT_VERIFIED | Exact metadata accepted | Not enabled | Latest-in-line and command evidence incomplete |
+| Palo Alto | PAN-OS | 11.2 | 11.2.9 candidate | VERSION_NOT_VERIFIED | Exact metadata accepted | Not enabled | Latest-in-line and command evidence incomplete |
+| Palo Alto | PAN-OS | 11.1 | 11.1 | LEGACY_VERIFIED | Yes | Bounded | Existing exact evidence retained |
+| Juniper | SRX | 25.4 | unresolved | VERSION_NOT_VERIFIED | Release-line metadata only | Not enabled | Exact SRX release not verified |
+| Juniper | SRX | 25.2 | 25.2R1 candidate | VERSION_NOT_VERIFIED | Exact metadata accepted | Not enabled | Latest SRX maintenance release not verified |
+| Juniper | SRX | 24.4 | 24.4R2 candidate | VERSION_NOT_VERIFIED | Exact metadata accepted | Not enabled | Latest SRX service release not verified |
+| Juniper | SRX | 23.4 | 23.4R2 | LEGACY_VERIFIED | Yes | Bounded | Existing SRX evidence retained |
+
 ## Platform status
 
 | Platform/domain | Source parser | CP0 | CP1 | Target renderer | CP2 | Workbench |
