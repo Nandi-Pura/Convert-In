@@ -19,7 +19,7 @@ def test_platform_registry_keeps_targets_independent_within_domain():
     firewall={p.vendor for p in PLATFORM_PROFILES if p.domain==ConfigDomain.FIREWALL}
     assert firewall=={NetworkVendor.CISCO,NetworkVendor.FORTINET,NetworkVendor.PALO_ALTO,NetworkVendor.JUNIPER}
     assert platform_profile("firewall-cisco-asa").supported_versions==("9.20","9.22","9.24")
-    assert platform_profile("firewall-fortinet-fortigate").supported_versions==("7.4","7.6")
+    assert platform_profile("firewall-fortinet-fortigate").supported_versions==("7.4","7.6","7.6.4")
     assert lookup_parser("router-cisco-iosxe","17.12.1")
 
 

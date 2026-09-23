@@ -21,6 +21,7 @@ class CompatibilityResult(BaseModel):
 
 class InterfaceMapping(BaseModel):
     source_interface:str; source_nameif:str|None=None; target_interface:str|None=None; target_zone:str|None=None; suggested_zone:str|None=None; confirmed:bool=False
+    source_profile:str|None=None; source_version:str|None=None; target_profile:str|None=None; target_version:str|None=None; source_entity_id:str|None=None
 
 class TargetManagementMode(StrEnum):
     LOCAL_FIREWALL="LOCAL_FIREWALL"; PANORAMA="PANORAMA"
@@ -134,6 +135,14 @@ class PanSetCommand(BaseModel):
     operation:str="SET"; path:list[str]; values:list[str]=Field(default_factory=list); entity_id:str; text:str=""
     target_profile:str; capability_id:str; documentation_refs:list[str]
     management_context:MigrationMappings
+
+class FortiOSOperation(BaseModel):
+    verb:str="set"; key:str; values:list[str]
+
+class FortiOSCommand(BaseModel):
+    entity_id:str; source_entity_id:str; section:str; edit_key:str
+    operations:list[FortiOSOperation]; capability_id:str; evidence_refs:list[str]
+    text:str=""
 
 class RenderResult(BaseModel):
     status:str; generated_lines:int; generated_entities:int; skipped_entities:int; manual_review:int; unsupported:int

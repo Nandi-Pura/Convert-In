@@ -2,6 +2,7 @@ from collections import Counter, defaultdict
 from enum import StrEnum
 
 from app.core.migration import MigrationPlanner, default_mappings
+from app.core.migration.models import MigrationMappings
 from app.core.migration.registry import SUPPORTED_MIGRATION_PAIRS
 from app.core.models import RouterConfig, Vendor
 from app.core.parsing import parse_config
@@ -39,7 +40,7 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
     if not target_profile:
         target_profile=platform_profile(target_profile_id)
     if not target_profile or target_profile.domain!=profile.domain:raise ValueError("Source and target domains must match.")
-    mode=WorkbenchMode.CONVERT if target_profile.target_renderer and target_version in target_profile.supported_versions else WorkbenchMode.ANALYZE
+    mode=WorkbenchMode.CONVERT if lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version) else WorkbenchMode.ANALYZE
     cfg=parse_config(text,vendor); lines=text.splitlines()
     if isinstance(cfg,RouterConfig) and mode==WorkbenchMode.CONVERT:
         integrity=RouterReferenceIntegrityValidator().validate(cfg); cp2=RouterCompatibilityEvaluator().evaluate(cfg,profile,target_profile,RouterMigrationMappings.model_validate(mappings or {}),integrity)
@@ -64,8 +65,11 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
                 related_findings=[message for key in related_ids for message in findings[key]]
                 entities.append(_row(entity,kind,_snippet(lines,entity),_normalized(entity),"BLOCKED" if blocked else "READY","CP1: BLOCKED" if blocked else "CP1: PASS",related_findings))
         return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,None,entities,None)
-    integrity=ReferenceIntegrityValidator().validate(cfg); source=resolve_context(text,vendor,source_version); target=resolve_context("",Vendor.PALO_ALTO,target_version)
-    plan=MigrationPlanner().plan(cfg,default_mappings(cfg),source,target,integrity); renderer=PaloAltoRenderer(); candidate,_=renderer.render(plan)
+    integrity=ReferenceIntegrityValidator().validate(cfg); target_vendor={"firewall-paloalto-panos":Vendor.PALO_ALTO,"firewall-fortinet-fortigate":Vendor.FORTIGATE}.get(target_profile.id)
+    if not target_vendor: raise ValueError("Target firewall renderer is not implemented.")
+    source=resolve_context(text,vendor,source_version); target=resolve_context("",target_vendor,target_version)
+    plan=MigrationPlanner().plan(cfg,MigrationMappings.model_validate(mappings or default_mappings(cfg)),source,target,integrity,target_vendor)
+    renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version); renderer=renderer_type(); candidate,_=renderer.render(plan)
     commands=defaultdict(list)
     for command in renderer.commands: commands[command.entity_id].append(command.text)
     source_entities={x.id:x for xs in (cfg.interfaces,cfg.zones,cfg.addresses,cfg.address_groups,cfg.services,cfg.service_groups,cfg.security_policies,cfg.nat_policies,cfg.static_routes,cfg.vpn_objects) for x in xs}
@@ -76,7 +80,7 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         detail=f"CP2: {item.status.value}"; reasons=item.reasons or (["Intent preserved"] if ready else ["No generated target config"])
         entities.append(_row(source_entities[item.entity_id],item.entity_type,_snippet(lines,source_entities[item.entity_id]),"\n".join(emitted) or "No generated target config",status,detail,reasons,names.get(item.entity_id),emitted))
     cp2=Counter(x.status.value for x in plan.compatibility)
-    header=[f"# Domain: {profile.domain.value}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} {target_version}"]
+    header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Domain: {profile.domain.value.title()}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} / {target_profile.os_family} {target_version}","#","# Application-level validation only","# No device deployment performed",f"# CP0: {cfg.extraction_coverage.normalized} normalized; {cfg.extraction_coverage.recovered} recovered; {cfg.extraction_coverage.unparsed} unparsed; {cfg.extraction_coverage.unsupported} source unsupported",f"# CP1: {integrity.blocking_findings} blocking findings",f"# CP2: {dict(cp2)}",f"# Conversion: {len(set(c.entity_id for c in renderer.commands))} generated; {sum(v for k,v in cp2.items() if k in {'MANUAL_REVIEW','PARTIAL'})} manual review; {cp2.get('UNSUPPORTED',0)} unsupported; {cp2.get('VERSION_NOT_VERIFIED',0)} version not verified",""]
     return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(header+candidate)+"\n")
 
 
@@ -86,5 +90,6 @@ def _row(entity,kind,source,target,status,detail,findings,target_title=None,comm
 
 def _result(mode,source,target,source_version,target_version,cp0,cp1,cp2,entities,candidate):
     profile=lambda p,v:{"id":p.id,"vendor":p.vendor.value,"platform":p.platform.value,"domain":p.domain.value,"version":v,"capability":p.target_capability.value}
-    slug="panos" if target.platform.value=="PAN_OS" else target.platform.value.lower().replace("_","-")
-    return {"mode":mode,"renderer_available":bool(target.target_renderer),"source_profile":profile(source,source_version),"target_profile":profile(target,target_version),"cp0":cp0.model_dump(mode="json"),"cp1":cp1.model_dump(mode="json"),"cp2":cp2,"cp0_summary":cp0.model_dump(mode="json"),"cp1_summary":cp1.model_dump(mode="json"),"cp2_summary":cp2,"entities":entities,"candidate":candidate,"candidate_filename":f"candidate-{slug}-{target_version}.set" if candidate else None}
+    slug={"PAN_OS":"panos","FORTIGATE":"fortios"}.get(target.platform.value,target.platform.value.lower().replace("_","-"))
+    extension="conf" if target.platform.value=="FORTIGATE" else "set"
+    return {"mode":mode,"renderer_available":bool(target.target_renderer),"source_profile":profile(source,source_version),"target_profile":profile(target,target_version),"cp0":cp0.model_dump(mode="json"),"cp1":cp1.model_dump(mode="json"),"cp2":cp2,"cp0_summary":cp0.model_dump(mode="json"),"cp1_summary":cp1.model_dump(mode="json"),"cp2_summary":cp2,"entities":entities,"candidate":candidate,"candidate_filename":f"candidate-{slug}-{target_version}.{extension}" if candidate else None}

@@ -32,6 +32,7 @@ class VendorPlatformProfile:
     analysis_supported: bool = False
     conversion_supported: bool = False
     target_capability: TargetCapability = TargetCapability.TARGET_NOT_IMPLEMENTED
+    target_versions: tuple[str,...] = ()
 
     @property
     def versions(self): return self.supported_versions
@@ -39,7 +40,7 @@ class VendorPlatformProfile:
 
 PLATFORM_PROFILES=(
     VendorPlatformProfile("firewall-cisco-asa",NetworkVendor.CISCO,Platform.ASA,"ASA",ConfigDomain.FIREWALL,("9.20","9.22","9.24"),Vendor.ASA,"AsaParser",analysis_supported=True),
-    VendorPlatformProfile("firewall-fortinet-fortigate",NetworkVendor.FORTINET,Platform.FORTIGATE,"FortiOS",ConfigDomain.FIREWALL,("7.4","7.6"),Vendor.FORTIGATE,"FortiGateParser",analysis_supported=True),
+    VendorPlatformProfile("firewall-fortinet-fortigate",NetworkVendor.FORTINET,Platform.FORTIGATE,"FortiOS",ConfigDomain.FIREWALL,("7.4","7.6","7.6.4"),Vendor.FORTIGATE,"FortiGateParser","FortiOSRenderer",capabilities=("address","address_group","service","service_group","security_policy","route"),documentation_profile=("FORTIOS-7.6.4-CLI-REFERENCE",),analysis_supported=True,conversion_supported=True,target_capability=TargetCapability.BOUNDED_RENDERER,target_versions=("7.6.4",)),
     VendorPlatformProfile("firewall-paloalto-panos",NetworkVendor.PALO_ALTO,Platform.PAN_OS,"PAN-OS",ConfigDomain.FIREWALL,("11.1",),Vendor.PALO_ALTO,"PaloAltoParser","PaloAltoRenderer",analysis_supported=True,conversion_supported=True,target_capability=TargetCapability.BOUNDED_RENDERER),
     VendorPlatformProfile("firewall-juniper-srx",NetworkVendor.JUNIPER,Platform.SRX,"Junos OS",ConfigDomain.FIREWALL,("23.4R2",),Vendor.JUNIPER_SRX,"JunosSrxParser",capabilities=("addresses","applications","policies","zones","nat","static_routes"),documentation_profile=("JUNOS-23.4R2-RELEASE",),analysis_supported=True),
     VendorPlatformProfile("router-cisco-iosxe",NetworkVendor.CISCO,Platform.IOS_XE,"IOS-XE",ConfigDomain.ROUTER,("17.12.1",),Vendor.CISCO_IOSXE,"IosXeRouterParser",capabilities=("interface_ipv4","vrf","static_route","prefix_list","route_map","ospf","bgp_neighbor"),documentation_profile=("IOSXE-17.12.1-COMMANDS",),analysis_supported=True,target_capability=TargetCapability.ANALYZE_ONLY),

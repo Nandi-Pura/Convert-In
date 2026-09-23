@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from app.core.models import Vendor
-from .sources import CiscoAsaSourceAdapter, FortiGateSourceAdapter, JuniperSrxSourceAdapter, MigrationSourceAdapter
+from .sources import CiscoAsaSourceAdapter, FortiGateSourceAdapter, JuniperSrxSourceAdapter, MigrationSourceAdapter, NormalizedSourceAdapter
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,12 @@ SUPPORTED_MIGRATION_PAIRS = {
     (Vendor.FORTIGATE, Vendor.PALO_ALTO): MigrationPair(FortiGateSourceAdapter, "PaloAltoRenderer", frozenset({"policy", "nat", "vip", "route"}), "fortigate-to-pan", frozenset({"fortios-7.4","fortios-7.6"}), frozenset({"panos-11.1","panos-12.1"})),
     (Vendor.JUNIPER_SRX, Vendor.PALO_ALTO): MigrationPair(JuniperSrxSourceAdapter,"PaloAltoRenderer",frozenset({"policy","nat","route"}),"srx-to-pan",frozenset({"junos-23.4R2"}),frozenset({"panos-11.1"})),
 }
+
+SOURCE_ADAPTERS={Vendor.ASA:CiscoAsaSourceAdapter,Vendor.FORTIGATE:FortiGateSourceAdapter,Vendor.JUNIPER_SRX:JuniperSrxSourceAdapter,Vendor.PALO_ALTO:NormalizedSourceAdapter}
+
+def source_adapter(vendor:Vendor|str):
+    try:return SOURCE_ADAPTERS[Vendor(vendor)]
+    except (ValueError,KeyError) as exc:raise ValueError(f"Unsupported migration source: {vendor}") from exc
 
 
 def migration_pair(source: Vendor | str, target: Vendor | str = Vendor.PALO_ALTO) -> MigrationPair:

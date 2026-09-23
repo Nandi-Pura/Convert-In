@@ -4,19 +4,30 @@ from app.core.analysis import AnalysisEngine
 from .compatibility import finalize, result
 from .mappings import confirmed_maps, normalize_names
 from .models import CompatibilityStatus as S, MigrationMappings, MigrationPlan, PlannedEntity
-from .registry import migration_pair
+from .registry import source_adapter
 from app.core.versions import emitted_capability_fully_evidenced,evidence_state,version_profile
 from app.core.versions.models import CapabilityStatus,VersionContext
 
 class MigrationPlanner:
-    def plan(self,cfg,mappings:MigrationMappings,source_version:VersionContext|None=None,target_version:VersionContext|None=None,reference_integrity=None):
+    def plan(self,cfg,mappings:MigrationMappings,source_version:VersionContext|None=None,target_version:VersionContext|None=None,reference_integrity=None,target_vendor:Vendor=Vendor.PALO_ALTO):
+        mappings=mappings.model_copy(deep=True)
         source=cfg.metadata.get("source_vendor")
-        source=Vendor(source); pair=migration_pair(source,Vendor.PALO_ALTO); cfg=pair.source_adapter().adapt(cfg)
+        source=Vendor(source); cfg=source_adapter(source)().adapt(cfg)
         entities=cfg.interfaces+cfg.zones+cfg.addresses+cfg.address_groups+cfg.services+cfg.service_groups+cfg.security_policies+cfg.nat_policies+cfg.static_routes+cfg.vpn_objects
         names=normalize_names(entities); targets={x.entity_id:x.target_name for x in names}; by_name={x.name:x for x in cfg.addresses+cfg.address_groups+cfg.services+cfg.service_groups}
         interface_maps,zone_maps=confirmed_maps(mappings); compatibility=[]; generate=[]
         source_profile=version_profile(source,source_version.selected_family) if source_version else None
-        target_profile=version_profile(Vendor.PALO_ALTO,target_version.selected_family) if target_version else None
+        target_profile=version_profile(target_vendor,target_version.selected_family) if target_version else None
+        fortios=target_vendor==Vendor.FORTIGATE
+        if fortios:
+            scoped=[m for m in mappings.interfaces if m.confirmed and (m.target_profile or m.target_version)]
+            for m in scoped:
+                if m.target_profile!="firewall-fortinet-fortigate" or m.target_version!="7.6.4":
+                    m.confirmed=False
+            target_names=[m.target_interface.casefold() for m in mappings.interfaces if m.confirmed and m.target_interface]
+            if len(target_names)!=len(set(target_names)):
+                for m in mappings.interfaces: m.confirmed=False
+            interface_maps,zone_maps=confirmed_maps(mappings)
         analysis,_=AnalysisEngine().analyze(cfg); cycles={x.primary_object_id for x in analysis.findings if x.type=="GROUP_CYCLE"}
         def add(entity,kind,status,data=None,*reasons,required=(),topology=None):
             capability={"nat_policy":getattr(entity,"type","nat_policy"),"route":"route"}.get(kind,kind)
@@ -35,6 +46,7 @@ class MigrationPlanner:
         for x in cfg.interfaces: add(x,"interface",S.MANUAL_REVIEW,None,"Source interfaces are mapping-only; no interface command generated.",required=[f"interface:{x.name}"] if x.name not in interface_maps else [])
         for x in cfg.zones: add(x,"zone",S.MANUAL_REVIEW,None,"Zone creation is not automatic; confirmed mappings are used by dependent rules.",required=[f"zone:{x.name}"] if x.name not in zone_maps else [])
         for x in cfg.addresses:
+            if fortios and targets[x.id]!=x.name: add(x,"address",S.MANUAL_REVIEW,None,"FortiOS object name requires an explicit engineer-confirmed mapping."); continue
             try:
                 if x.type=="host": value=str(ipaddress.ip_address(x.value)); value+=f"/{32 if ':' not in value else 128}"
                 elif x.type=="network": value=str(ipaddress.ip_network(x.value,strict=False))
@@ -42,25 +54,30 @@ class MigrationPlanner:
                     a,b=x.value.split("-",1); ipaddress.ip_address(a); ipaddress.ip_address(b); value=x.value
                 elif x.type=="fqdn" and x.value and " " not in x.value: value=x.value
                 else: raise ValueError
+                if fortios and (":" in value or x.type=="fqdn"): raise ValueError
                 add(x,"address",S.SUPPORTED,{"type":x.type,"value":value})
             except (ValueError,TypeError,AttributeError): add(x,"address",S.MANUAL_REVIEW,None,"Invalid or unsupported normalized address value.")
         for x in cfg.address_groups:
+            if fortios and targets[x.id]!=x.name: add(x,"address_group",S.MANUAL_REVIEW,None,"FortiOS group name requires an explicit engineer-confirmed mapping."); continue
             missing=[m for m in x.members if m not in by_name]; cycle=x.id in cycles
             if missing or cycle: add(x,"address_group",S.MANUAL_REVIEW,None,"Group cycle detected." if cycle else f"Missing members: {', '.join(missing)}")
             else: add(x,"address_group",S.SUPPORTED,{"members":[targets[by_name[m].id] for m in x.members]})
         for x in cfg.services:
+            if fortios and targets[x.id]!=x.name: add(x,"service",S.MANUAL_REVIEW,None,"FortiOS service name requires an explicit engineer-confirmed mapping."); continue
             if x.vendor_extensions.get("source_operator") or x.vendor_extensions.get("destination_operator"): add(x,"service",S.MANUAL_REVIEW,None,"Source service operator cannot be represented exactly.")
             elif x.protocol not in {"tcp","udp"}: add(x,"service",S.UNSUPPORTED,None,f"Protocol {x.protocol} is not supported.")
             elif x.source_ports: add(x,"service",S.MANUAL_REVIEW,None,"Source-port restrictions are not safely represented by this renderer.")
             elif not x.destination_ports: add(x,"service",S.MANUAL_REVIEW,None,"Destination port is required.")
             else: add(x,"service",S.SUPPORTED,{"protocol":x.protocol,"ports":x.destination_ports})
         for x in cfg.service_groups:
+            if fortios and targets[x.id]!=x.name: add(x,"service_group",S.MANUAL_REVIEW,None,"FortiOS service-group name requires an explicit engineer-confirmed mapping."); continue
             missing=[m for m in x.members if m not in by_name]
             if missing or x.id in cycles: add(x,"service_group",S.MANUAL_REVIEW,None,"Group dependency is unresolved or cyclic.")
             else: add(x,"service_group",S.SUPPORTED,{"members":[targets[by_name[m].id] for m in x.members]})
         policy_positions=[x.position for x in cfg.security_policies]
         duplicate_positions=len(policy_positions)!=len(set(policy_positions))
         for x in sorted(cfg.security_policies,key=lambda p:p.position):
+            if fortios and targets[x.id]!=x.name: add(x,"security_policy",S.MANUAL_REVIEW,None,"FortiOS policy name requires an explicit engineer-confirmed mapping."); continue
             topology=x.vendor_extensions.get("topology",{})
             required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps]
             refs=x.sources+x.destinations+x.services; missing=[r for r in refs if r.lower() not in {"any","any4","any6","application-default","service-http","service-https"} and r not in by_name]
@@ -74,12 +91,17 @@ class MigrationPlanner:
             elif not x.source_zones or not x.destination_zones: add(x,"security_policy",S.MANUAL_REVIEW,None,topology.get("reason") or "Normalized rule has no explicit source/destination zones.",required=["source_zone","destination_zone"],topology=topology)
             elif required: add(x,"security_policy",S.MANUAL_REVIEW,None,"Confirmed zone mapping is required.",required=required,topology=topology)
             elif x.action not in {"allow","deny"}: add(x,"security_policy",S.UNSUPPORTED,None,f"Action {x.action} is not safely implemented.")
-            elif not mappings.security_rule_placement: add(x,"security_policy",S.MANUAL_REVIEW,None,"Explicit target security-rule placement is required.",topology=topology)
-            elif target_profile and target_profile.version_family!="11.1": add(x,"security_policy",S.MANUAL_REVIEW,None,"Security policy generation is limited to PAN-OS 11.1.",topology=topology)
+            elif x.log_start or x.log_end: add(x,"security_policy",S.MANUAL_REVIEW,None,"Logging semantics are preserved for review and not invented on the target.",topology=topology)
+            elif not fortios and not mappings.security_rule_placement: add(x,"security_policy",S.MANUAL_REVIEW,None,"Explicit target security-rule placement is required.",topology=topology)
+            elif target_profile and not fortios and target_profile.version_family!="11.1": add(x,"security_policy",S.MANUAL_REVIEW,None,"Security policy generation is limited to PAN-OS 11.1.",topology=topology)
             else:
+                if fortios and any(v.lower() in {"any","any4","any6","application-default","service-http","service-https"} for v in refs):
+                    add(x,"security_policy",S.MANUAL_REVIEW,None,"Built-in address and service mappings require explicit evidence.",topology=topology); continue
                 resolve=lambda values:[v if v.lower() in {"any","application-default","service-http","service-https"} else targets[by_name[v].id] for v in values]
                 add(x,"security_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve(x.sources),"destination":resolve(x.destinations),"service":resolve(x.services),"action":x.action,"enabled":x.enabled,"description":x.description,"log_start":x.log_start,"log_end":x.log_end,"position":x.position},topology=topology)
         for x in cfg.nat_policies:
+            if fortios:
+                add(x,"nat_policy",S.MANUAL_REVIEW,None,"FortiOS NAT and VIP generation is disabled for Q8."); continue
             required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps]
             refs=x.original_source+x.original_destination+x.translated_source+x.translated_destination
             missing=[r for r in refs if r not in {"any","interface"} and r not in by_name and not self._ip_value(r)]
@@ -101,8 +123,10 @@ class MigrationPlanner:
             if x.vendor_extensions.get("manual_review"): add(x,"route",S.MANUAL_REVIEW,None,x.vendor_extensions["manual_review"]); continue
             try: ipaddress.ip_network(x.destination,strict=False); ipaddress.ip_address(x.next_hop)
             except ValueError: add(x,"route",S.MANUAL_REVIEW,None,"Invalid route destination or next hop."); continue
+            if fortios and (x.distance is not None or x.metric is not None): add(x,"route",S.MANUAL_REVIEW,None,"Cross-vendor route distance or metric is not mapped."); continue
             mapping=interface_maps.get(x.interface)
             if x.interface and (not mapping or not mapping.target_interface): add(x,"route",S.MANUAL_REVIEW,None,"Confirmed target interface mapping is required.",required=[f"interface:{x.interface}"])
+            elif fortios and not x.interface: add(x,"route",S.MANUAL_REVIEW,None,"Confirmed target route interface is required.",required=["route_interface"])
             else: add(x,"route",S.SUPPORTED,{"destination":x.destination,"next_hop":x.next_hop,"interface":mapping.target_interface if mapping else None,"virtual_router":mappings.virtual_router,"metric":x.metric})
         for x in cfg.vpn_objects: add(x,"vpn",S.UNSUPPORTED,None,"VPN migration is outside Phase F scope.")
         advisories=[f"Analysis: {x.description}" for x in analysis.findings if x.type=="POTENTIAL_SHADOWING"]
@@ -110,7 +134,7 @@ class MigrationPlanner:
         for x in cfg.unparsed_constructs: advisories.append(f"Preserved unparsed {source.value} construct at line {x.line_number}: {x.reason}")
         blocked=[x.message for x in cfg.warnings if x.severity==Severity.ERROR]
         if not source_profile: advisories.append("Source version not verified. Select a verified source OS version before candidate generation.")
-        if not target_profile: blocked.append("Explicit verified target PAN-OS version is required.")
+        if not target_profile: blocked.append("Explicit verified target version is required.")
         if reference_integrity:
             blocked_ids=reference_integrity.blocked_entity_ids
             generate=[x for x in generate if x.entity_id not in blocked_ids]
@@ -119,9 +143,9 @@ class MigrationPlanner:
                     item.status=S.MANUAL_REVIEW; item.blocking=True; item.reasons.append("Source semantics cannot be validated because CP1 reference integrity is blocked.")
                     item.related_cp1_findings=[x.finding_id for x in reference_integrity.findings if x.source_entity_id==item.entity_id and x.blocking]
                     capability=item.renderer_capability_id or ""
-                    basis="|".join((item.entity_id,Vendor.PALO_ALTO.value,item.target_version or "",mappings.management_mode.value,item.status.value,capability))
+                    basis="|".join((item.entity_id,target_vendor.value,item.target_version or "",mappings.management_mode.value,item.status.value,capability))
                     item.decision_id=__import__("hashlib").sha256(basis.encode()).hexdigest()[:16]
-        return MigrationPlan(source_vendor=source,mappings=mappings,compatibility=compatibility,names=names,generate=generate,blocked=blocked,advisories=advisories,source_version=source_version,target_version=target_version)
+        return MigrationPlan(source_vendor=source,target_vendor=target_vendor,mappings=mappings,compatibility=compatibility,names=names,generate=generate,blocked=blocked,advisories=advisories,source_version=source_version,target_version=target_version)
 
     @staticmethod
     def _ip_value(value):

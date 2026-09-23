@@ -9,7 +9,7 @@ Convert-In is a local multi-vendor, multi-domain configuration migration workben
 3. Select a same-domain target independently of the source vendor.
 4. Convert when the selected target has an evidence-gated renderer. Otherwise use analysis mode.
 5. Review each entity's source, target or normalized form, semantic findings, and checkpoint status.
-6. Copy only **READY** firewall entities or download the complete candidate `.set` file.
+6. Copy only **READY** firewall entities or download the complete candidate configuration.
 
 Generated output requires engineer review. No deployment or device validation occurs.
 
@@ -29,6 +29,7 @@ Current capabilities:
 - Cisco ASA and FortiGate → PAN-OS migration assistance
 - semantic migration review
 - candidate PAN-OS set-command generation
+- bounded FortiOS 7.6.4 candidate generation from normalized firewall IR
 
 > **Generated configurations require engineer review.** Convert-In does not validate against a device or deploy configurations.
 
@@ -54,8 +55,8 @@ Synthetic screenshots: [firewall conversion](docs/images/workbench-firewall.png)
 | Visualization | Policy graph, object dependencies, impact scope | MVP |
 | Migration | Cisco ASA → PAN-OS | Candidate generation |
 | Migration | FortiGate → PAN-OS | Alpha / candidate |
-| Migration | PAN-OS → FortiGate | Not implemented |
-| Supported generation target | PAN-OS 11.1 `LOCAL_FIREWALL` | Engineer review required |
+| Migration | ASA, FortiGate, PAN-OS, or SRX → FortiOS 7.6.4 | Bounded candidate generation |
+| Supported generation target | PAN-OS 11.1 or FortiOS 7.6.4 | Bounded; engineer review required |
 | Generated subset | Addresses/groups, services/groups, supported security policies, supported static routes | Documentation-gated |
 | Review / non-generated | NAT, ambiguous target context, interface/zone mapping, advanced semantics, unverified versions | Inline comments |
 | Blocked | PAN-OS 12.1, Panorama, live deployment | Not supported by Quick Convert |

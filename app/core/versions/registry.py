@@ -3,7 +3,8 @@ from .models import Capability,CapabilityStatus as S,VersionProfile
 
 def _cap(refs,status=S.DOCUMENTED_IMPLEMENTED_TESTED,limitation=None,**evidence):
     verified=status==S.DOCUMENTED_IMPLEMENTED_TESTED
-    return Capability(status=status,documentation_refs=refs,limitation=limitation,renderer_support=verified,test_refs=["tests/test_semantic_compatibility.py"] if verified else [],**evidence)
+    tests=evidence.pop("test_refs",["tests/test_semantic_compatibility.py"] if verified else [])
+    return Capability(status=status,documentation_refs=refs,limitation=limitation,renderer_support=verified,test_refs=tests,**evidence)
 PROFILES={}
 for family in ("9.20","9.22","9.24"):
     objects=f"ASA-{family}-ACCESS-OBJECTS"; routes=f"ASA-{family}-STATIC-ROUTES"; firewall=f"ASA-{family}-FIREWALL"
@@ -19,6 +20,8 @@ for family in ("7.4","7.6"):
     caps.update({"interface_address_pat":_cap([snat],S.DOCUMENTED_NOT_IMPLEMENTED),"destination_static_nat":_cap([vip],S.DOCUMENTED_NOT_IMPLEMENTED),"destination_port_translation":_cap([vip],S.DOCUMENTED_NOT_IMPLEMENTED),"ip_pool_snat":_cap([snat],S.DOCUMENTED_NOT_IMPLEMENTED),"central_nat":_cap([snat],S.DOCUMENTED_NOT_IMPLEMENTED),"identity_nat":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED),"twice_nat":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED),"vdom":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED),"sdwan":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED),"security_profiles":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED)})
     caps["security_policy"]=_cap([f"FORTIOS-{family}-FIREWALL-POLICY-CLI"])
     PROFILES[f"fortios-{family}"]=VersionProfile(id=f"fortios-{family}",vendor=Vendor.FORTIGATE,os_name="FortiOS",version_family=family,documentation_refs=[cli,vip,snat],capabilities=caps,tested=True,known_limitations=["Central NAT, IP pools, VDOM, SD-WAN, security profiles, and advanced VIPs require manual review."])
+fortios_refs={"address":"FORTIOS-7.6.4-ADDRESS","address_group":"FORTIOS-7.6.4-ADDRGRP","service":"FORTIOS-7.6.4-SERVICE-CUSTOM","service_group":"FORTIOS-7.6.4-SERVICE-GROUP","security_policy":"FORTIOS-7.6.4-FIREWALL-POLICY","route":"FORTIOS-7.6.4-STATIC-ROUTE"}
+PROFILES["fortios-7.6.4"]=VersionProfile(id="fortios-7.6.4",vendor=Vendor.FORTIGATE,os_name="FortiOS",version_family="7.6.4",documentation_refs=["FORTIOS-7.6.4-CLI-REFERENCE",*fortios_refs.values()],capabilities={name:_cap([ref],test_refs=["tests/test_q8_fortios.py"]) for name,ref in fortios_refs.items()}|{"interface_address_pat":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED),"destination_static_nat":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED),"destination_port_translation":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED),"central_nat":_cap([],S.DOCUMENTED_NOT_IMPLEMENTED)},tested=True,known_limitations=["IPv4 only. NAT, VIP, VDOM, zones, security profiles, built-in mappings, and interface creation are not generated."])
 for family in ("11.1","12.1"):
     refs=[f"PANOS-{family}-SECURITY-POLICY"] if family=="11.1" else []
     caps={x:_cap([],S.IMPLEMENTED_NOT_DOCUMENTATION_VERIFIED) for x in ("address","address_group","service","service_group","route")}

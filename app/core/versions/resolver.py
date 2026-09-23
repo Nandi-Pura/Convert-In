@@ -13,6 +13,7 @@ PATTERNS={
 }
 
 def version_family(value:str|None):
+    if value=="7.6.4": return value
     match=re.match(r"^(\d+\.\d+)",value or "")
     return match.group(1) if match else None
 

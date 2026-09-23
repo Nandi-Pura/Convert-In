@@ -94,5 +94,26 @@
     "official_url": "https://docs.fortinet.com/document/fortigate/7.6.0/cli-reference",
     "verified_at": "2026-09-18",
     "notes": "Official version-specific command tree and field reference for all emitted source capabilities."
+  },
+  {
+    "id": "FORTIOS-7.6.4-CLI-REFERENCE", "vendor": "fortigate", "product": "FortiGate / FortiOS", "version_family": "7.6.4", "document_type": "CLI_REFERENCE", "title": "FortiOS 7.6.4 CLI reference", "topic": "Version-specific FortiOS command tree", "official_url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference", "verified_at": "2026-09-21"
+  },
+  {
+    "id": "FORTIOS-7.6.4-ADDRESS", "vendor": "fortigate", "product": "FortiGate / FortiOS", "version_family": "7.6.4", "document_type": "CLI_REFERENCE", "title": "config firewall address | FortiOS 7.6.4", "topic": "IPv4 subnet and inclusive IPv4 range objects", "official_url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/306021697/config-firewall-address", "verified_at": "2026-09-21"
+  },
+  {
+    "id": "FORTIOS-7.6.4-ADDRGRP", "vendor": "fortigate", "product": "FortiGate / FortiOS", "version_family": "7.6.4", "document_type": "CLI_REFERENCE", "title": "config firewall addrgrp | FortiOS 7.6.4", "topic": "IPv4 address group members", "official_url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/301511994/config-firewall-addrgrp", "verified_at": "2026-09-21"
+  },
+  {
+    "id": "FORTIOS-7.6.4-SERVICE-CUSTOM", "vendor": "fortigate", "product": "FortiGate / FortiOS", "version_family": "7.6.4", "document_type": "CLI_REFERENCE", "title": "config firewall service custom | FortiOS 7.6.4", "topic": "TCP and UDP destination port ranges", "official_url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/198499981/config-firewall-service-custom", "verified_at": "2026-09-21"
+  },
+  {
+    "id": "FORTIOS-7.6.4-SERVICE-GROUP", "vendor": "fortigate", "product": "FortiGate / FortiOS", "version_family": "7.6.4", "document_type": "CLI_REFERENCE", "title": "config firewall service group | FortiOS 7.6.4", "topic": "Custom service group members", "official_url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/242456538/config-firewall-service-group", "verified_at": "2026-09-21"
+  },
+  {
+    "id": "FORTIOS-7.6.4-FIREWALL-POLICY", "vendor": "fortigate", "product": "FortiGate / FortiOS", "version_family": "7.6.4", "document_type": "CLI_REFERENCE", "title": "config firewall policy | FortiOS 7.6.4", "topic": "Interface, address, service, schedule, action, status, and policy ID fields", "official_url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/333889629/config-firewall-policy", "verified_at": "2026-09-21"
+  },
+  {
+    "id": "FORTIOS-7.6.4-STATIC-ROUTE", "vendor": "fortigate", "product": "FortiGate / FortiOS", "version_family": "7.6.4", "document_type": "CLI_REFERENCE", "title": "config router static | FortiOS 7.6.4", "topic": "IPv4 destination, gateway, device, distance, and route sequence", "official_url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/200835411/config-router-static", "verified_at": "2026-09-21"
   }
 ]
