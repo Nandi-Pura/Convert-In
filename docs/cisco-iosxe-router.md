@@ -1,6 +1,6 @@
 # Cisco IOS-XE router analysis
 
-Q6 supports parser and assurance analysis for Cisco IOS XE Dublin `17.12.1`. Adjacent releases remain `VERSION_NOT_VERIFIED`. Strong detection requires `Cisco IOS XE Software, Version 17.12.1`; otherwise explicit source/version selection is required.
+Q7 supports parsing, assurance, and a bounded Junos target path for Cisco IOS XE Dublin `17.12.1`. Adjacent releases remain `VERSION_NOT_VERIFIED`. Strong detection requires `Cisco IOS XE Software, Version 17.12.1`; otherwise explicit source/version selection is required.
 
 ## Scope
 
@@ -16,4 +16,4 @@ CP1 uses router-specific typed indexes. It validates interface/route to VRF, rou
 
 ## Limits
 
-MPLS, EIGRP, IS-IS, multicast, QoS, PBR, advanced BGP address families, advanced OSPF fields, tracking/IP SLA, tunnels, complete MP-BGP, and complete OSPF remain source-unsupported or unparsed. No CP2 applies because no router target exists. No router renderer, Quick Convert source, deployment, or cross-vendor router conversion exists.
+MPLS, EIGRP, IS-IS, multicast, QoS, PBR, advanced BGP address families, advanced OSPF fields, tracking/IP SLA, tunnels, complete MP-BGP, and complete OSPF remain source-unsupported or unparsed. Junos 23.4R2 rendering is limited to explicitly mapped physical interfaces, simple global next-hop static routes, and exact permit prefix lists. VRFs, route policies, BGP, and OSPF remain review-only. No deployment exists.

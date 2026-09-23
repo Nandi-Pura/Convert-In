@@ -2,8 +2,8 @@
 
 The root route uses one three-card workspace without a sidebar:
 
-1. **Import Config** accepts a local file or pasted configuration, limited to 5 MiB.
-2. **Select Platform** confirms the detected source and verified OS version. Firewall sources expose PAN-OS 11.1 conversion. Cisco IOS-XE 17.12.1 exposes analysis only.
+1. **Import Config** accepts a local file or JSON-transported paste, limited to 100 MiB by UTF-8 byte length.
+2. **Select Platform** provides independent source and target vendor, platform, and version controls. Targets remain in the source domain.
 3. **Configuration Comparison** presents source, normalized or target output, checkpoint status, and findings by entity.
 
 ## Entity safety
@@ -13,9 +13,9 @@ The root route uses one three-card workspace without a sidebar:
 - NAT remains non-generated and non-copyable.
 - **Copy Selected** and **Copy All READY** preserve dependency order.
 - **Download Candidate** contains the complete evidence-gated PAN-OS candidate. It remains a candidate configuration requiring engineer review.
-- IOS-XE rows expose CP0 and CP1 analysis only. No target, renderer, candidate, or copy action is implied.
+- IOS-XE 17.12.1 to Junos 23.4R2 runs bounded CP2 and rendering. Unmapped interfaces, VRFs, route policies, BGP, and OSPF remain non-copyable.
 
-Filters, search, and row expansion operate locally in the browser. Configuration processing remains local. The previous workflow remains at `/advanced`.
+Source changes clear all results. Target changes clear target output, CP2, candidate, and copy state. Filters, search, and row expansion operate locally in the browser.
 
 ## Screenshots
 

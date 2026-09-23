@@ -3,6 +3,10 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.config import MAX_CONFIG_BYTES
+from app.web.api import ingest_source_text
+from fastapi import HTTPException
+import pytest
 
 client=TestClient(app)
 
@@ -22,7 +26,7 @@ def test_firewall_workbench_uses_emission_gates_and_entity_commands():
 
 def test_router_workbench_is_analysis_only_and_exposes_cp1():
     response=run("tests/fixtures/iosxe/policy-router.cfg","cisco_iosxe","17.12.1"); assert response.status_code==200
-    body=response.json(); assert body["mode"]=="ANALYZE" and body["target_profile"] is None and body["candidate"] is None
+    body=response.json(); assert body["mode"]=="ANALYZE" and not body["renderer_available"] and body["candidate"] is None
     assert body["cp1_summary"]["blocking_findings"]==1
     blocked=[x for x in body["entities"] if x["user_status"]=="BLOCKED"]
     assert blocked and all(not x["copyable"] and x["detailed_status"]=="CP1: BLOCKED" for x in blocked)
@@ -44,10 +48,17 @@ def test_file_and_paste_text_produce_identical_workbench_results(tmp_path):
 
 def test_json_source_utf8_size_boundaries():
     prefix="#config-version=FGT60F-7.4.12-FW-build1-1:opmode=0:vdom=0\n"
-    for size in (128,1024*1024,1024*1024+1,5*1024*1024):
+    for size in (128,1024*1024,1024*1024+1,6*1024*1024):
         text=(prefix+"#"*(size-len(prefix.encode()))); response=client.post("/api/convert/detect",json={"source_text":text})
         assert response.status_code==200, response.text
-    response=client.post("/api/convert/detect",json={"source_text":prefix+"é"*(5*1024*1024//2)})
+    response=client.post("/api/convert/detect",json={"source_text":prefix+"é"*(100*1024*1024//2)})
     assert response.status_code==413
-    assert response.json()["detail"]=="Configuration exceeds the 5 MiB limit."
+    assert response.json()["detail"]=="Configuration exceeds the 100 MiB limit."
     assert "Part exceeded maximum size" not in response.text
+
+
+def test_exact_100_mib_source_boundary():
+    exact="x"*MAX_CONFIG_BYTES
+    assert ingest_source_text(exact) is exact
+    with pytest.raises(HTTPException) as error:ingest_source_text(exact+"x")
+    assert error.value.status_code==413 and error.value.detail=="Configuration exceeds the 100 MiB limit."

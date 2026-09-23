@@ -1,13 +1,13 @@
 # Convert-In
 
-Convert-In is a local firewall configuration analysis, visualization, and migration workbench.
+Convert-In is a local multi-vendor, multi-domain configuration migration workbench.
 
 ## Unified workbench
 
 1. Drop or paste a synthetic or sanitized Cisco ASA, FortiGate, or Juniper SRX configuration.
 2. Confirm the source vendor and OS version.
-3. For firewall sources, confirm **Palo Alto Networks / PAN-OS 11.1**, then select **Convert**.
-4. For Cisco IOS-XE 17.12.1, select **Analyze**. Router target rendering is not implemented.
+3. Select a same-domain target independently of the source vendor.
+4. Convert when the selected target has an evidence-gated renderer. Otherwise use analysis mode.
 5. Review each entity's source, target or normalized form, semantic findings, and checkpoint status.
 6. Copy only **READY** firewall entities or download the complete candidate `.set` file.
 
@@ -21,7 +21,7 @@ Current capabilities:
 
 - Cisco ASA, FortiGate, and Palo Alto PAN-OS XML parsing
 - Juniper SRX Junos 23.4R2 set-style source parsing and bounded PAN-OS candidate generation
-- Cisco IOS-XE 17.12.1 Router analysis: parser plus CP0/CP1 foundation; no router target rendering
+- Cisco IOS-XE 17.12.1 router parsing plus bounded Junos 23.4R2 target rendering
 - separate RouterConfig and SwitchConfig foundations; no router/switch conversion claim
 - a normalized vendor-neutral firewall model
 - object and policy dependency visualization
@@ -36,7 +36,7 @@ Current capabilities:
 
 **No firewall configuration is uploaded externally. No cloud API is required. No telemetry. No analytics. No external AI API.** All processing and persistence stay on the local machine. The default bind is `127.0.0.1`.
 
-Inputs are limited to 5 MiB, PAN XML uses `defusedxml`, configuration bodies are not logged, and CSP/security headers are set. Workspace files contain sensitive plaintext; protect local filesystem access and never commit `data/` or `workspace/`.
+Inputs are limited to 100 MiB by UTF-8 byte length, PAN XML uses `defusedxml`, configuration bodies are not logged, and CSP/security headers are set. Workspace files contain sensitive plaintext; protect local filesystem access and never commit `data/` or `workspace/`.
 
 ## Screenshots
 

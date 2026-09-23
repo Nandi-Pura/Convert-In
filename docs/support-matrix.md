@@ -2,14 +2,20 @@
 
 ## Platform status
 
-| Platform/domain | Parser | CP0 | CP1 | CP2 | Renderer | Quick Convert |
+| Platform/domain | Source parser | CP0 | CP1 | Target renderer | CP2 | Workbench |
 |---|---|---|---|---|---|---|
-| Juniper SRX / firewall / Junos 23.4R2 | Set-style MVP | Yes | Yes | Bounded to PAN-OS 11.1 | PAN target only | Source yes |
-| Cisco IOS-XE 17.12.1 / router | Q6 supported subset | Yes | Yes | Not applicable; no target | None | No |
+| Juniper SRX / firewall / Junos 23.4R2 | Set-style MVP | Yes | Yes | None | Bounded for PAN-OS 11.1 | Analysis; PAN conversion |
+| Cisco IOS-XE 17.12.1 / router | Bounded subset | Yes | Yes | None | Bounded for Junos 23.4R2 | Analysis; Junos conversion |
+| PAN-OS 11.1 / firewall | XML MVP | Current state | Current state | Bounded | Target-specific | Source analysis; target conversion |
+| Cisco ASA / firewall | Bounded | Yes | Yes | None | PAN-OS 11.1 bounded | Analysis; PAN conversion |
+| FortiOS / firewall | Bounded | Yes | Yes | None | PAN-OS 11.1 bounded | Analysis; PAN conversion |
 | Cisco IOS/IOS-XE/NX-OS / switch | No; foundation | Model foundation | Foundation | No | No | No |
 | Aruba AOS-CX / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |
-| Juniper Junos / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |
-| Huawei VRP / router or switch | No; profile foundation | Model foundation | Foundation | No | No | No |
+| Juniper Junos 23.4R2 / router | No; target profile | Model foundation | Foundation | Bounded | Bounded | Target conversion |
+| Juniper Junos / switch | No; foundation | Model foundation | Foundation | No | No | Analysis only |
+| Huawei VRP / router or switch | No; profile foundation | Model foundation | Foundation | No | No | Analysis only |
+
+Profile presence does not claim conversion support. PAN-OS 11.1 is the only firewall target renderer. Junos 23.4R2 is the only router target renderer. No switch renderer exists.
 
 SRX normalization covers set-style zones/interface membership, interface addresses, scoped address entries and sets, explicit TCP/UDP applications and application sets, basic security policy match/action/logging/order/inactive state, global static routes, and NAT recognition. Hierarchical syntax, host-inbound services, schedulers, routing instances, advanced application fields, and advanced policy actions are unparsed or source-unsupported. Address-book scope is preserved in vendor metadata; ambiguous duplicate names block CP1 rather than flattening silently. Zones remain explicit mappings. NAT always remains non-generated.
 

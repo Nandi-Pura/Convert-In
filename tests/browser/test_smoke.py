@@ -83,14 +83,15 @@ def test_workbench_firewall_convert_copy_filter_and_download(page,live_server,tm
     page.get_by_role("button",name="Blocked",exact=True).click(); assert page.locator(".entity-row input:not([disabled])").count()==0
     assert page.locator(".entity-row .row-action",has_text="Copy").count()==0
     with page.expect_download() as download: page.get_by_role("link",name="Download Candidate").click()
-    assert download.value.suggested_filename=="candidate-pan-os.set"
+    assert download.value.suggested_filename=="candidate-panos-11.1.set"
 
 
 def test_workbench_iosxe_analyze_search_and_inspect(page,live_server):
     live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
     page.locator("#source-text").fill(Path("tests/fixtures/iosxe/policy-router.cfg").read_text())
-    page.locator("#source-version").select_option("17.12.1"); page.get_by_role("button",name="Analyze",exact=True).click(); page.locator(".entity-row").first.wait_for()
-    assert page.locator("#target-fields").is_hidden() and page.locator("#download").is_hidden()
+    page.locator("#source-platform").select_option("router-cisco-iosxe"); page.locator("#target-vendor").select_option("CISCO")
+    page.get_by_role("button",name="Analyze",exact=True).click(); page.locator(".entity-row").first.wait_for()
+    assert page.locator("#target-fields").is_visible() and page.locator("#download").is_hidden()
     assert page.locator("#column-heads").inner_text().splitlines()==["Source Config","Normalized / Analysis","Findings"]
     page.locator("#search").fill("RM-MISSING"); assert page.locator(".entity-row").count()==1
     page.locator(".entity-row summary").click(); assert page.locator(".inspect").is_visible()
@@ -100,7 +101,7 @@ def test_workbench_accepts_large_json_paste(page,live_server):
     live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
     text="#config-version=FGT60F-7.4.12-FW-build1-1:opmode=0:vdom=0\nconfig firewall address\nedit LARGE\nset subnet 192.0.2.1 255.255.255.255\nnext\nend\n"+"# synthetic\n"*90000
     assert 1024*1024<len(text.encode())<5*1024*1024
-    page.locator("#source-text").evaluate("(element,value)=>{element.value=value;element.dispatchEvent(new Event('input',{bubbles:true}))}",text); page.locator("#source-vendor").select_option("fortigate"); page.locator("#source-version").select_option("7.4")
+    page.locator("#source-text").evaluate("(element,value)=>{element.value=value;element.dispatchEvent(new Event('input',{bubbles:true}))}",text); page.locator("#source-status").wait_for(); page.locator("#source-vendor").select_option("FORTINET"); assert page.locator("#source-platform").input_value()=="firewall-fortinet-fortigate"; page.locator("#source-version").select_option("7.4")
     with page.expect_response(lambda response:response.url.endswith("/api/workbench/run")) as submitted: page.get_by_role("button",name="Convert",exact=True).click()
     body=submitted.value.text(); assert submitted.value.ok, f"HTTP {submitted.value.status}: {body}"
     assert "Part exceeded maximum size" not in body

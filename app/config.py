@@ -1,8 +1,8 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-MAX_CONFIG_BYTES = 5 * 1024 * 1024
-MAX_REQUEST_BYTES = MAX_CONFIG_BYTES * 6 + 64 * 1024
+MAX_CONFIG_BYTES = 100 * 1024 * 1024
+MAX_REQUEST_BYTES = 110 * 1024 * 1024
 
 
 class Settings(BaseSettings):

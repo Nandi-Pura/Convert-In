@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Form, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.config import settings
 from app.core.models import FirewallConfig, Severity, Vendor
 from app.core.analysis import AnalysisEngine
@@ -24,6 +24,7 @@ from app.core.reference_integrity import ReferenceIntegrityValidator
 from app.core.domain_detection import detect_domain
 from app.core.migration.quick_convert import convert as quick_convert, detect_source, profiles as quick_profiles, safe_filename
 from app.core.workbench import build as build_workbench
+from app.core.platforms import profiles_payload, platform_profile
 
 router = APIRouter(prefix="/api")
 
@@ -33,9 +34,12 @@ class WorkbenchSource(BaseModel):
     source_version:str=""
     target_vendor:str="paloalto"
     target_version:str="11.1"
+    source_profile:str|None=None
+    target_profile:str|None=None
+    mappings:dict=Field(default_factory=dict)
 
 def ingest_source_text(source_text:str):
-    if len(source_text.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds the 5 MiB limit.")
+    if len(source_text.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds the 100 MiB limit.")
     return source_text
 
 @router.post("/workbench/run")
@@ -48,15 +52,20 @@ def run_workbench(source:WorkbenchSource):
     context=resolve_context(config,vendor,source_version or None)
     selected=source_version or context.detected_family
     if not selected: raise HTTPException(422,"Source version was not verified. Select it explicitly.")
-    try: return build_workbench(config,vendor,selected,target_version)
+    target_profile=source.target_profile or ("router-huawei-vrp" if vendor==Vendor.CISCO_IOSXE else "firewall-paloalto-panos")
+    target_version=source.target_version if source.target_profile else ("" if vendor==Vendor.CISCO_IOSXE else source.target_version)
+    try: return build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings)
     except ValueError as exc: raise HTTPException(422,str(exc)) from exc
 
 @router.get("/convert/profiles")
 def quick_convert_profiles(): return {"profiles":quick_profiles()}
 
+@router.get("/workbench/profiles")
+def workbench_profiles(): return {"profiles":profiles_payload()}
+
 @router.post("/convert")
 def convert_configuration(config:str=Form(...),source_vendor:str=Form("auto"),source_version:str=Form(""),target_vendor:str=Form("paloalto"),target_version:str=Form("11.1"),management_mode:str=Form("LOCAL_FIREWALL"),source_filename:str=Form("converted.cfg")):
-    if len(config.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds 5 MiB limit")
+    ingest_source_text(config)
     try: result=quick_convert(config,source_vendor,source_version,target_vendor,target_version,management_mode)
     except ValueError as exc: raise HTTPException(422,str(exc)) from exc
     project_id=str(uuid4()); root=(settings.workspace_dir/project_id/"quick-convert").resolve(); base=settings.workspace_dir.resolve()
@@ -82,8 +91,7 @@ def download_converted_config(project_id:str):
 
 @router.post("/analyze", response_class=HTMLResponse)
 def analyze(source: str = Form(...), source_vendor: str = Form("auto"), target_vendor: str = Form(...), source_version: str|None = Form(None), target_version: str|None = Form(None)):
-    size = len(source.encode("utf-8"))
-    if size > settings.max_input_bytes: raise HTTPException(413, "Configuration exceeds 5 MiB limit")
+    source=ingest_source_text(source)
     if target_vendor not in {Vendor.PALO_ALTO.value, Vendor.FORTIGATE.value}: raise HTTPException(400, "Unsupported target vendor")
     detected = detect_vendor(source)
     try: vendor = detected.vendor if source_vendor == "auto" else Vendor(source_vendor)

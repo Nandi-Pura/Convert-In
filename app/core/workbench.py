@@ -5,11 +5,13 @@ from app.core.migration import MigrationPlanner, default_mappings
 from app.core.migration.registry import SUPPORTED_MIGRATION_PAIRS
 from app.core.models import RouterConfig, Vendor
 from app.core.parsing import parse_config
-from app.core.platforms import PLATFORM_PROFILES, Platform
+from app.core.platforms import platform_profile
 from app.core.reference_integrity import ReferenceIntegrityValidator
 from app.core.renderers import PaloAltoRenderer
 from app.core.router_assurance import RouterReferenceIntegrityValidator
 from app.core.versions import resolve_context
+from app.core.router_migration import RouterCompatibilityEvaluator, RouterMigrationMappings
+from app.core.renderers.registry import lookup_renderer
 
 
 class WorkbenchMode(StrEnum):
@@ -18,12 +20,6 @@ class WorkbenchMode(StrEnum):
 
 LABELS={Vendor.ASA:"Cisco ASA",Vendor.FORTIGATE:"FortiGate",Vendor.JUNIPER_SRX:"Juniper SRX",Vendor.CISCO_IOSXE:"Cisco"}
 TYPE_LABELS={"address":"Address","address_group":"Address Group","service":"Service","service_group":"Service Group","security_policy":"Security Rule","nat_policy":"NAT Rule","route":"Static Route","interface":"Interface","vrf":"VRF","prefix_list":"Prefix List","route_policy":"Route Map","ospf_process":"OSPF Process","bgp_neighbor":"BGP Neighbor"}
-
-
-def capability(vendor:Vendor):
-    platform=next((x for x in PLATFORM_PROFILES if x.parser and ((vendor==Vendor.CISCO_IOSXE and x.platform==Platform.IOS_XE) or (vendor==Vendor.ASA and x.platform==Platform.ASA) or (vendor==Vendor.FORTIGATE and x.platform==Platform.FORTIGATE) or (vendor==Vendor.JUNIPER_SRX and x.platform==Platform.SRX))),None)
-    convertible=(vendor,Vendor.PALO_ALTO) in SUPPORTED_MIGRATION_PAIRS
-    return WorkbenchMode.CONVERT if convertible else WorkbenchMode.ANALYZE,platform
 
 
 def _snippet(lines,entity):
@@ -36,13 +32,30 @@ def _normalized(entity):
     return "\n".join(f"{k.replace('_',' ').title()}: {', '.join(map(str,v)) if isinstance(v,list) else v}" for k,v in data.items())
 
 
-def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1"):
-    mode,profile=capability(vendor); cfg=parse_config(text,vendor); lines=text.splitlines()
+def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",source_profile_id:str|None=None,target_profile_id:str="firewall-paloalto-panos",mappings:dict|None=None):
+    source_profile_id=source_profile_id or {Vendor.ASA:"firewall-cisco-asa",Vendor.FORTIGATE:"firewall-fortinet-fortigate",Vendor.PALO_ALTO:"firewall-paloalto-panos",Vendor.JUNIPER_SRX:"firewall-juniper-srx",Vendor.CISCO_IOSXE:"router-cisco-iosxe"}.get(vendor)
+    profile=platform_profile(source_profile_id,source_version); target_profile=platform_profile(target_profile_id,target_version)
+    if not profile or not profile.source_parser:raise ValueError("Invalid source platform or version profile.")
+    if not target_profile:
+        target_profile=platform_profile(target_profile_id)
+    if not target_profile or target_profile.domain!=profile.domain:raise ValueError("Source and target domains must match.")
+    mode=WorkbenchMode.CONVERT if target_profile.target_renderer and target_version in target_profile.supported_versions else WorkbenchMode.ANALYZE
+    cfg=parse_config(text,vendor); lines=text.splitlines()
+    if isinstance(cfg,RouterConfig) and mode==WorkbenchMode.CONVERT:
+        integrity=RouterReferenceIntegrityValidator().validate(cfg); cp2=RouterCompatibilityEvaluator().evaluate(cfg,profile,target_profile,RouterMigrationMappings.model_validate(mappings or {}),integrity)
+        renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version); renderer=renderer_type(); candidate=renderer.render(cp2); commands=defaultdict(list)
+        for command in renderer.commands:commands[command.entity_id].append(command.text)
+        source_entities={x.id:x for xs in (cfg.interfaces,cfg.vrfs,cfg.static_routes,cfg.prefix_lists,cfg.route_policies,cfg.ospf_processes,[n for p in cfg.bgp_processes for n in p.neighbors]) for x in xs}; entities=[]
+        for item in cp2:
+            emitted=commands[item.entity_id]; ready=bool(emitted) and item.status in {"EXACT","SUPPORTED"}
+            status="READY" if ready else "BLOCKED" if item.status in {"UNSUPPORTED","VERSION_NOT_VERIFIED"} else "REVIEW REQUIRED"; entity=source_entities[item.entity_id]
+            entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons,commands=emitted))
+        header=[f"# Domain: {profile.domain.value}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} {target_version}"]
+        return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,"\n".join(header+candidate)+"\n" if candidate else None)
     if mode==WorkbenchMode.ANALYZE:
-        if not isinstance(cfg,RouterConfig): raise ValueError("No analysis workbench is registered for this platform.")
-        integrity=RouterReferenceIntegrityValidator().validate(cfg); findings=defaultdict(list)
+        integrity=(RouterReferenceIntegrityValidator() if isinstance(cfg,RouterConfig) else ReferenceIntegrityValidator()).validate(cfg); findings=defaultdict(list)
         for finding in integrity.findings: findings[finding.source_entity_id].append(finding.reason+f" {finding.referenced_entity_name or ''}".rstrip())
-        collections=(("interface",cfg.interfaces),("vrf",cfg.vrfs),("route",cfg.static_routes),("prefix_list",cfg.prefix_lists),("route_policy",cfg.route_policies),("ospf_process",cfg.ospf_processes),("bgp_neighbor",[n for p in cfg.bgp_processes for n in p.neighbors]))
+        collections=(("interface",cfg.interfaces),("vrf",cfg.vrfs),("route",cfg.static_routes),("prefix_list",cfg.prefix_lists),("route_policy",cfg.route_policies),("ospf_process",cfg.ospf_processes),("bgp_neighbor",[n for p in cfg.bgp_processes for n in p.neighbors])) if isinstance(cfg,RouterConfig) else (("interface",cfg.interfaces),("zone",cfg.zones),("address",cfg.addresses),("address_group",cfg.address_groups),("service",cfg.services),("service_group",cfg.service_groups),("security_policy",cfg.security_policies),("nat_policy",cfg.nat_policies),("route",cfg.static_routes))
         entities=[]
         for kind,items in collections:
             for entity in items:
@@ -50,7 +63,7 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1"):
                 blocked=any(integrity.entity_statuses[key]=="BLOCKED" for key in related_ids)
                 related_findings=[message for key in related_ids for message in findings[key]]
                 entities.append(_row(entity,kind,_snippet(lines,entity),_normalized(entity),"BLOCKED" if blocked else "READY","CP1: BLOCKED" if blocked else "CP1: PASS",related_findings))
-        return _result(mode,vendor,profile,source_version,None,cfg.extraction_coverage,integrity,None,entities,None)
+        return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,None,entities,None)
     integrity=ReferenceIntegrityValidator().validate(cfg); source=resolve_context(text,vendor,source_version); target=resolve_context("",Vendor.PALO_ALTO,target_version)
     plan=MigrationPlanner().plan(cfg,default_mappings(cfg),source,target,integrity); renderer=PaloAltoRenderer(); candidate,_=renderer.render(plan)
     commands=defaultdict(list)
@@ -63,12 +76,15 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1"):
         detail=f"CP2: {item.status.value}"; reasons=item.reasons or (["Intent preserved"] if ready else ["No generated target config"])
         entities.append(_row(source_entities[item.entity_id],item.entity_type,_snippet(lines,source_entities[item.entity_id]),"\n".join(emitted) or "No generated target config",status,detail,reasons,names.get(item.entity_id),emitted))
     cp2=Counter(x.status.value for x in plan.compatibility)
-    return _result(mode,vendor,profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(candidate)+"\n")
+    header=[f"# Domain: {profile.domain.value}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} {target_version}"]
+    return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(header+candidate)+"\n")
 
 
 def _row(entity,kind,source,target,status,detail,findings,target_title=None,commands=None):
     return {"id":entity.id,"entity_type":TYPE_LABELS.get(kind,kind.replace("_"," ").title()),"source_title":entity.name,"source_snippet":source,"target_title":target_title,"target_snippet":target,"user_status":status,"detailed_status":detail,"copyable":status=="READY" and bool(commands),"findings":findings,"semantic_fields":[],"commands":commands or []}
 
 
-def _result(mode,vendor,profile,source_version,target_version,cp0,cp1,cp2,entities,candidate):
-    return {"mode":mode,"source_profile":{"vendor":LABELS[vendor],"platform":profile.os_family if profile else vendor.value,"domain":profile.domain.value if profile else "FIREWALL","version":source_version},"target_profile":{"vendor":"Palo Alto Networks","platform":"PAN-OS","version":target_version} if mode==WorkbenchMode.CONVERT else None,"cp0_summary":cp0.model_dump(mode="json"),"cp1_summary":cp1.model_dump(mode="json"),"cp2_summary":cp2,"entities":entities,"candidate":candidate}
+def _result(mode,source,target,source_version,target_version,cp0,cp1,cp2,entities,candidate):
+    profile=lambda p,v:{"id":p.id,"vendor":p.vendor.value,"platform":p.platform.value,"domain":p.domain.value,"version":v,"capability":p.target_capability.value}
+    slug="panos" if target.platform.value=="PAN_OS" else target.platform.value.lower().replace("_","-")
+    return {"mode":mode,"renderer_available":bool(target.target_renderer),"source_profile":profile(source,source_version),"target_profile":profile(target,target_version),"cp0":cp0.model_dump(mode="json"),"cp1":cp1.model_dump(mode="json"),"cp2":cp2,"cp0_summary":cp0.model_dump(mode="json"),"cp1_summary":cp1.model_dump(mode="json"),"cp2_summary":cp2,"entities":entities,"candidate":candidate,"candidate_filename":f"candidate-{slug}-{target_version}.set" if candidate else None}

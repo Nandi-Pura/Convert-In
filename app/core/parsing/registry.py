@@ -5,6 +5,7 @@ from app.vendors.fortigate.parser import FortiGateParser
 from app.vendors.paloalto.parser import PaloAltoParser
 from app.vendors.juniper_srx.parser import JunosSrxParser
 from app.vendors.cisco_iosxe.parser import IosXeRouterParser
+from app.core.platforms import platform_profile
 
 PARSERS = {p.vendor: p for p in (AsaParser(), FortiGateParser(), PaloAltoParser(), JunosSrxParser(), IosXeRouterParser())}
 
@@ -20,3 +21,7 @@ def parse_config(text: str, vendor: Vendor):
         ignored=sum(not line.strip() or line.lstrip().startswith(("!","#")) for line in text.splitlines())
         cfg.finalize_extraction(vendor,detected,ignored)
     return cfg
+
+def lookup_parser(profile_id:str,version:str):
+    profile=platform_profile(profile_id,version)
+    return PARSERS.get(profile.source_vendor) if profile and profile.source_parser else None
