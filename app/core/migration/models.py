@@ -149,6 +149,11 @@ class AsaCommand(BaseModel):
     operations:list[list[str]]; capability_id:str; evidence_refs:list[str]
     text:str=""
 
+class JunosSrxCommand(BaseModel):
+    entity_id:str; source_entity_id:str; hierarchy:list[str]; arguments:list[str]
+    capability_id:str; evidence_refs:list[str]; dependency_ids:list[str]=Field(default_factory=list)
+    text:str=""
+
 class RenderResult(BaseModel):
     status:str; generated_lines:int; generated_entities:int; skipped_entities:int; manual_review:int; unsupported:int
     candidate_path:str|None=None; report:MigrationReport; candidate:str|None=None

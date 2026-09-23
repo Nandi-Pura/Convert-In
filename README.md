@@ -31,6 +31,9 @@ Current capabilities:
 - candidate PAN-OS set-command generation
 - bounded FortiOS 7.6.4 candidate generation from normalized firewall IR
 - bounded Cisco ASA 9.24 object and service candidate generation from normalized firewall IR
+- bounded Juniper SRX Junos 23.4R2 candidate generation from normalized firewall IR
+
+Four core firewall target renderers are available as bounded, evidence-gated implementations. Actual semantic support varies by target capability and exact version. Source and target remain independently selected within one domain; target-specific CP2 keeps unsupported semantics visible for manual review.
 
 > **Generated configurations require engineer review.** Convert-In does not validate against a device or deploy configurations.
 
@@ -170,7 +173,7 @@ Current development version: **0.2.0-alpha.1**. The corresponding prerelease is 
 
 ## Roadmap
 
-Next recommended phase: independent PAN-OS lab validation, richer FortiGate NAT fixtures, and usability hardening. PAN-OS → FortiGate remains unimplemented.
+Next recommended phase: expand evidence-backed mapping workflows and usability validation without broadening NAT or live-device scope.
 
 ## License
 

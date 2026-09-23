@@ -1,0 +1,17 @@
+set security address-book global address HOST 10.0.0.1/32
+set security address-book global address NET 10.0.1.0/24
+set security address-book global address RANGE range-address 10.0.2.1 to 10.0.2.9
+set security address-book global address-set ADDRS address HOST
+set security address-book global address-set ADDRS address NET
+set security address-book global address-set ADDRS address RANGE
+set applications application HTTPS_CUSTOM protocol tcp
+set applications application HTTPS_CUSTOM destination-port 443
+set applications application DNS_RANGE protocol udp
+set applications application DNS_RANGE destination-port 53 to 54
+set applications application-set APPS application HTTPS_CUSTOM
+set applications application-set APPS application DNS_RANGE
+set security policies from-zone trust to-zone untrust policy ALLOW_WEB match source-address ADDRS
+set security policies from-zone trust to-zone untrust policy ALLOW_WEB match destination-address HOST
+set security policies from-zone trust to-zone untrust policy ALLOW_WEB match application APPS
+set security policies from-zone trust to-zone untrust policy ALLOW_WEB then permit
+set routing-options static route 0.0.0.0/0 next-hop 192.0.2.1

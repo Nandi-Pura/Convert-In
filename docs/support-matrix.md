@@ -4,7 +4,7 @@
 
 | Platform/domain | Source parser | CP0 | CP1 | Target renderer | CP2 | Workbench |
 |---|---|---|---|---|---|---|
-| Juniper SRX / firewall / Junos 23.4R2 | Set-style MVP | Yes | Yes | None | Bounded for PAN-OS 11.1 | Analysis; PAN conversion |
+| Juniper SRX / firewall / Junos 23.4R2 | Set-style MVP | Yes | Yes | SRX 23.4R2 bounded | Target-specific | Analysis; bounded conversion |
 | Cisco IOS-XE 17.12.1 / router | Bounded subset | Yes | Yes | None | Bounded for Junos 23.4R2 | Analysis; Junos conversion |
 | PAN-OS 11.1 / firewall | XML MVP | Current state | Current state | Bounded | Target-specific | Source analysis; target conversion |
 | Cisco ASA / firewall | Bounded | Yes | Yes | ASA 9.24 bounded | PAN-OS 11.1 and ASA 9.24 bounded | Analysis; bounded conversion |
@@ -15,7 +15,7 @@
 | Juniper Junos / switch | No; foundation | Model foundation | Foundation | No | No | Analysis only |
 | Huawei VRP / router or switch | No; profile foundation | Model foundation | Foundation | No | No | Analysis only |
 
-Profile presence does not claim conversion support. PAN-OS 11.1, FortiOS 7.6.4, and Cisco ASA 9.24 are bounded firewall targets. The ASA target emits objects and services only; ACLs, bindings, routes, interfaces, and NAT remain review-only. Juniper SRX target rendering remains unimplemented. Junos 23.4R2 is the only router target renderer. No switch renderer exists.
+Profile presence does not claim conversion support. PAN-OS 11.1, FortiOS 7.6.4, Cisco ASA 9.24, and Juniper SRX 23.4R2 are bounded firewall targets. The ASA target emits objects and services only; ACLs, bindings, routes, interfaces, and NAT remain review-only. The SRX target emits a firewall-specific evidenced subset; NAT remains review-only. Junos 23.4R2 is the only router target renderer. No switch renderer exists.
 
 SRX normalization covers set-style zones/interface membership, interface addresses, scoped address entries and sets, explicit TCP/UDP applications and application sets, basic security policy match/action/logging/order/inactive state, global static routes, and NAT recognition. Hierarchical syntax, host-inbound services, schedulers, routing instances, advanced application fields, and advanced policy actions are unparsed or source-unsupported. Address-book scope is preserved in vendor metadata; ambiguous duplicate names block CP1 rather than flattening silently. Zones remain explicit mappings. NAT always remains non-generated.
 

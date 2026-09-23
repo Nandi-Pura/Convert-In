@@ -4,11 +4,13 @@ from .junos_router import JunosRouterRenderer
 from .paloalto import PaloAltoRenderer
 from .fortios import FortiOSRenderer
 from .asa import AsaRenderer
+from .junos_srx import JunosSrxRenderer
 
 RENDERERS={
     (ConfigDomain.FIREWALL,NetworkVendor.PALO_ALTO,Platform.PAN_OS,"11.1"):PaloAltoRenderer,
     (ConfigDomain.FIREWALL,NetworkVendor.FORTINET,Platform.FORTIGATE,"7.6.4"):FortiOSRenderer,
     (ConfigDomain.FIREWALL,NetworkVendor.CISCO,Platform.ASA,"9.24"):AsaRenderer,
+    (ConfigDomain.FIREWALL,NetworkVendor.JUNIPER,Platform.SRX,"23.4R2"):JunosSrxRenderer,
     (ConfigDomain.ROUTER,NetworkVendor.JUNIPER,Platform.JUNOS,"23.4R2"):JunosRouterRenderer,
 }
 
