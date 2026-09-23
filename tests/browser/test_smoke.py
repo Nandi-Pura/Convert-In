@@ -95,6 +95,17 @@ def test_workbench_iosxe_analyze_search_and_inspect(page,live_server):
     page.locator("#search").fill("RM-MISSING"); assert page.locator(".entity-row").count()==1
     page.locator(".entity-row summary").click(); assert page.locator(".inspect").is_visible()
 
+
+def test_workbench_accepts_large_json_paste(page,live_server):
+    live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
+    text="#config-version=FGT60F-7.4.12-FW-build1-1:opmode=0:vdom=0\nconfig firewall address\nedit LARGE\nset subnet 192.0.2.1 255.255.255.255\nnext\nend\n"+"# synthetic\n"*90000
+    assert 1024*1024<len(text.encode())<5*1024*1024
+    page.locator("#source-text").evaluate("(element,value)=>{element.value=value;element.dispatchEvent(new Event('input',{bubbles:true}))}",text); page.locator("#source-vendor").select_option("fortigate"); page.locator("#source-version").select_option("7.4")
+    with page.expect_response(lambda response:response.url.endswith("/api/workbench/run")) as submitted: page.get_by_role("button",name="Convert",exact=True).click()
+    body=submitted.value.text(); assert submitted.value.ok, f"HTTP {submitted.value.status}: {body}"
+    assert "Part exceeded maximum size" not in body
+    page.locator(".entity-row").first.wait_for()
+
 @pytest.mark.parametrize("width,height",[(1280,800),(1440,900),(1600,900),(1920,1080)])
 def test_quick_convert_responsive(page,live_server,width,height):
     live_server,_=live_server; page.set_viewport_size({"width":width,"height":height}); page.goto(live_server)

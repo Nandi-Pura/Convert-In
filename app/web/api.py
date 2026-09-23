@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Form, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from pydantic import BaseModel
 from app.config import settings
 from app.core.models import FirewallConfig, Severity, Vendor
 from app.core.analysis import AnalysisEngine
@@ -26,9 +27,20 @@ from app.core.workbench import build as build_workbench
 
 router = APIRouter(prefix="/api")
 
+class WorkbenchSource(BaseModel):
+    source_text:str
+    source_vendor:str="auto"
+    source_version:str=""
+    target_vendor:str="paloalto"
+    target_version:str="11.1"
+
+def ingest_source_text(source_text:str):
+    if len(source_text.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds the 5 MiB limit.")
+    return source_text
+
 @router.post("/workbench/run")
-def run_workbench(config:str=Form(...),source_vendor:str=Form("auto"),source_version:str=Form(""),target_version:str=Form("11.1")):
-    if len(config.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds 5 MiB limit")
+def run_workbench(source:WorkbenchSource):
+    config=ingest_source_text(source.source_text); source_vendor=source.source_vendor; source_version=source.source_version; target_version=source.target_version
     detected=detect_vendor(config)
     try: vendor=detected.vendor if source_vendor=="auto" else Vendor(source_vendor)
     except ValueError as exc: raise HTTPException(422,"Unsupported source platform.") from exc
@@ -53,8 +65,8 @@ def convert_configuration(config:str=Form(...),source_vendor:str=Form("auto"),so
     return {"project_id":project_id,"detected_source_vendor":result.source_vendor.value,"detected_source_version":result.source_version,"extraction_coverage":result.extraction_coverage.model_dump(mode="json"),"reference_integrity":result.reference_integrity.model_dump(mode="json"),"semantic_compatibility":result.semantic_compatibility,"conversion_summary":result.summary,"category_accounting":result.categories,"warnings":result.warnings,"candidate_filename":filename,"download_url":f"/api/convert/{project_id}/download"}
 
 @router.post("/convert/detect")
-def detect_configuration(config:str=Form(...)):
-    if len(config.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds 5 MiB limit")
+def detect_configuration(source:WorkbenchSource):
+    config=ingest_source_text(source.source_text)
     detected,version=detect_source(config)
     domain=detect_domain(config)
     return {"vendor":detected.vendor.value,"version":version,"confidence":detected.confidence,"domain":domain.primary.value if domain.primary else None,"capabilities":[x.value for x in sorted(domain.capabilities,key=lambda x:x.value)],"ambiguous_domain":domain.ambiguous}

@@ -20,7 +20,8 @@ async def security_headers(request: Request, call_next):
 @app.middleware("http")
 async def input_size_limit(request: Request, call_next):
     length = request.headers.get("content-length")
-    if request.method in {"POST", "PUT", "PATCH"} and length and int(length) > settings.max_input_bytes:
+    ceiling=settings.max_request_bytes if request.headers.get("content-type","").startswith("application/json") else settings.max_input_bytes
+    if request.method in {"POST", "PUT", "PATCH"} and length and int(length) > ceiling:
         return JSONResponse({"detail": "Request exceeds input size limit"}, status_code=413)
     return await call_next(request)
 
