@@ -1,8 +1,8 @@
 # Blocker report
 
-## Current Q
+## Resolution
 
-Q12: Firewall semantic coverage hardening
+Q12 reopened under the partial-completion policy. Missing capability evidence is a conservative product state, not a global roadmap blocker.
 
 ## Exact blocker
 
@@ -30,9 +30,9 @@ PAN-OS 12.2.3 and 12.1.6 release-note URLs in `docs/vendor-reference/q11-release
 2. Narrow Q12 acceptance to capabilities already proven by bundled exact-version references; keep every other construct `MANUAL_REVIEW`, `UNSUPPORTED`, or `VERSION_NOT_VERIFIED`.
 3. Keep Q12 blocked. Continue no later phase because the roadmap requires sequential completed phases.
 
-## Recommended option
+## Applied option
 
-Option 1. Build an evidence table per capability and exact target before changing parsers, CP2, or renderers. Release evidence must remain separate from syntax and semantic evidence.
+The audit records every candidate independently in `docs/firewall-semantic-coverage.md`. No additional command emission was enabled. Every Q12 capability remains `VERSION_NOT_VERIFIED` until exact-version syntax and semantic evidence supports a narrower decision.
 
 ## Current SHA
 

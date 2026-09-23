@@ -64,6 +64,11 @@ for key,profile_id,line,exact in (("cisco_asa-9.24","asa-9.24-target","9.24","9.
     old=PROFILES[profile_id]
     RELEASE_PROFILES[key]=old.model_copy(update={"id":key,"platform":{"cisco_asa":"ASA","fortigate":"FORTIGATE","paloalto":"PAN_OS","juniper_srx":"SRX"}[old.vendor.value],"release_line":line,"exact_version":exact,"display_version":line,"version_status":VS.LEGACY_VERIFIED,"latest_in_line":False,"release_evidence_ids":old.documentation_refs[:1],"source_parser_available":True,"target_renderer_available":True,"target_capability":"BOUNDED_RENDERER","audited_at":AUDIT_DATE,"rank":99})
 
+Q12_CAPABILITIES=("interface_zone_context","disabled_rules","icmp","source_ports","multiple_service_ranges","nested_groups","fqdn_objects","ipv6_objects","logging","schedules","static_route_options")
+for profile in RELEASE_PROFILES.values():
+    if profile.exact_version not in {"9.24","7.6.4","11.1","23.4R2"}: continue
+    profile.capabilities.update({f"q12.{name}":_cap([],S.VERSION_NOT_VERIFIED,limitation="Q12 exact-version emitting semantics were not established; engineer review required.") for name in Q12_CAPABILITIES})
+
 def release_profiles(vendor:Vendor|None=None):
     return sorted((p for p in RELEASE_PROFILES.values() if vendor is None or p.vendor==vendor),key=lambda p:(p.vendor.value,p.rank))
 
