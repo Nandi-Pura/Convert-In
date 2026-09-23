@@ -22,8 +22,22 @@ from app.core.pan_lab import PanLabValidationResult
 from app.core.reference_integrity import ReferenceIntegrityValidator
 from app.core.domain_detection import detect_domain
 from app.core.migration.quick_convert import convert as quick_convert, detect_source, profiles as quick_profiles, safe_filename
+from app.core.workbench import build as build_workbench
 
 router = APIRouter(prefix="/api")
+
+@router.post("/workbench/run")
+def run_workbench(config:str=Form(...),source_vendor:str=Form("auto"),source_version:str=Form(""),target_version:str=Form("11.1")):
+    if len(config.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds 5 MiB limit")
+    detected=detect_vendor(config)
+    try: vendor=detected.vendor if source_vendor=="auto" else Vendor(source_vendor)
+    except ValueError as exc: raise HTTPException(422,"Unsupported source platform.") from exc
+    if vendor==Vendor.UNKNOWN: raise HTTPException(422,"Could not detect source platform.")
+    context=resolve_context(config,vendor,source_version or None)
+    selected=source_version or context.detected_family
+    if not selected: raise HTTPException(422,"Source version was not verified. Select it explicitly.")
+    try: return build_workbench(config,vendor,selected,target_version)
+    except ValueError as exc: raise HTTPException(422,str(exc)) from exc
 
 @router.get("/convert/profiles")
 def quick_convert_profiles(): return {"profiles":quick_profiles()}

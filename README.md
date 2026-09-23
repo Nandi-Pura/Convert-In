@@ -2,20 +2,20 @@
 
 Convert-In is a local firewall configuration analysis, visualization, and migration workbench.
 
-## Quick Convert
+## Unified workbench
 
 1. Drop or paste a synthetic or sanitized Cisco ASA, FortiGate, or Juniper SRX configuration.
 2. Confirm the source vendor and OS version.
-3. Confirm **Palo Alto Networks / PAN-OS 11.1 / LOCAL_FIREWALL**.
-4. Select **Convert Configuration**.
-5. Download the single candidate `.set` file.
-6. Review inline manual-review, unsupported, and version-not-verified comments.
+3. For firewall sources, confirm **Palo Alto Networks / PAN-OS 11.1**, then select **Convert**.
+4. For Cisco IOS-XE 17.12.1, select **Analyze**. Router target rendering is not implemented.
+5. Review each entity's source, target or normalized form, semantic findings, and checkpoint status.
+6. Copy only **READY** firewall entities or download the complete candidate `.set` file.
 
 Generated output requires engineer review. No deployment or device validation occurs.
 
 Assurance pipeline: [CP0 Source Extraction Coverage](docs/extraction-coverage.md) → [CP1 Reference Integrity](docs/reference-integrity.md) → [CP2 Semantic Compatibility](docs/semantic-compatibility.md) → evidence-gated candidate renderer. Checkpoints remain independent. None claims migration accuracy.
 
-**Advanced Workbench** remains available for analysis, visualization, mapping, compatibility evidence, semantic review, application validation, optional PAN lab validation, and package export.
+See [Unified workbench](docs/ui-workbench.md) for copy gates and interaction details. **Advanced Workbench** remains available at `/advanced` for visualization, mapping, compatibility evidence, semantic review, application validation, optional PAN lab validation, and package export.
 
 Current capabilities:
 
@@ -40,7 +40,7 @@ Inputs are limited to 5 MiB, PAN XML uses `defusedxml`, configuration bodies are
 
 ## Screenshots
 
-Sanitized screenshots are planned for `docs/images/overview.png`, `visualize.png`, `analysis.png`, `migration.png`, and `review.png`. They are intentionally omitted until captured from synthetic data; no broken images are embedded.
+Synthetic screenshots: [firewall conversion](docs/images/workbench-firewall.png) and [IOS-XE analysis](docs/images/workbench-iosxe.png). Existing advanced-workbench captures remain under `docs/images/`.
 
 ## Q1 support matrix
 

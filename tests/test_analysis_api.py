@@ -39,7 +39,7 @@ def test_bounded_graph_search_and_scopes():
     assert client.get(f"/api/projects/{project}/graph/scope",params={"root":address["object_id"],"mode":"whole"}).status_code==400
 
 def test_visualizer_uses_only_local_assets():
-    page=client.get("/")
+    page=client.get("/advanced")
     assert "/static/vendor/cytoscape/cytoscape.min.js" in page.text
     assert "https://" not in page.text and "http://" not in page.text
     assert client.get("/static/vendor/cytoscape/cytoscape.min.js").status_code==200

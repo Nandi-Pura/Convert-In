@@ -6,3 +6,5 @@ from app.core.migration.quick_convert import profiles
 router = APIRouter(); templates = Jinja2Templates(directory="app/templates")
 @router.get("/", response_class=HTMLResponse)
 def home(request: Request): return templates.TemplateResponse(request, "index.html", {"quick_profiles":profiles()})
+@router.get("/advanced", response_class=HTMLResponse)
+def advanced(request: Request): return templates.TemplateResponse(request, "advanced.html", {"quick_profiles":profiles()})
