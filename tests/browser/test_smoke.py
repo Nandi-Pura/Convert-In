@@ -68,6 +68,12 @@ def test_malformed_is_recoverable(page,live_server):
 def test_workbench_firewall_convert_copy_filter_and_download(page,live_server,tmp_path):
     live_server,_=live_server; page.set_viewport_size({"width":1440,"height":900}); page.goto(live_server)
     assert page.locator(".card").count()==3 and page.locator("aside").count()==0
+    assert page.get_by_role("link",name="Advanced Workbench").count()==0
+    assert page.get_by_role("heading",name="Import Config").is_visible()
+    assert page.get_by_role("heading",name="Select Platform").is_visible()
+    assert page.get_by_role("heading",name="Configuration Comparison").is_visible()
+    assert page.get_by_role("button",name="All",exact=True).is_visible()
+    assert page.locator("#column-heads").is_visible()
     page.locator("#source-file").set_input_files(str(Path("examples/fortigate/basic.conf").resolve())); page.locator("#source-version").select_option("7.4")
     page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".entity-row").first.wait_for()
     assert page.get_by_text("Source Parsing:").is_visible() and page.get_by_text("Compatibility:").is_visible()
@@ -75,6 +81,7 @@ def test_workbench_firewall_convert_copy_filter_and_download(page,live_server,tm
     page.get_by_role("button",name="Ready",exact=True).click(); assert page.locator(".entity-row").count()>0
     first=page.locator(".entity-row input:not([disabled])").first; first.check(); assert page.locator("#copy-selected").is_enabled()
     page.get_by_role("button",name="Blocked",exact=True).click(); assert page.locator(".entity-row input:not([disabled])").count()==0
+    assert page.locator(".entity-row .row-action",has_text="Copy").count()==0
     with page.expect_download() as download: page.get_by_role("link",name="Download Candidate").click()
     assert download.value.suggested_filename=="candidate-pan-os.set"
 
@@ -94,3 +101,5 @@ def test_quick_convert_responsive(page,live_server,width,height):
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     assert page.locator(".card").count()==3 and page.locator("aside").count()==0
     assert page.get_by_role("button",name="Convert",exact=True).is_visible()
+    target=page.locator("#target-fields"); box=target.bounding_box(); viewport=page.viewport_size
+    assert box and box["x"]>=0 and box["x"]+box["width"]<=viewport["width"]
