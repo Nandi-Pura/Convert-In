@@ -18,6 +18,8 @@ Migration code consumes normalized IR only. It does not parse source syntax. A c
 
 The artifact represents review-only migration intent. It is versioned, evidence-bounded, non-executable, and available even when candidate rendering is blocked. It does not authorize unsupported candidate generation or alter renderer evidence gates.
 
+Semantic Diff v2 consumes normalized IR and CP2 evidence to account for source properties as `PRESERVED`, `CHANGED`, `LOST`, or `REVIEW`. Unknown behavior remains `REVIEW`; command absence never establishes loss. The deterministic `migration/semantic-diff.json` artifact works without candidate output. See [semantic-diff.md](semantic-diff.md).
+
 FortiGate scope and limitations are documented in [fortigate-to-pan.md](fortigate-to-pan.md).
 
 ## ASA to PAN-OS scope
@@ -45,6 +47,7 @@ Generated files are always **Candidate Configuration — Engineer Review Require
 - `migration/compatibility.json`
 - `migration/mappings.json`
 - `migration/migration-plan.json`
+- `migration/semantic-diff.json` when generated
 - `migration/security-rule-ordering.json` when security rules are generated
 
 `nat-rule-ordering.json` is not produced because no NAT definition currently passes the evidence gate.

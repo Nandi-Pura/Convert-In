@@ -26,6 +26,7 @@ from app.core.migration.quick_convert import convert as quick_convert, detect_so
 from app.core.workbench import build as build_workbench
 from app.core.platforms import profiles_payload, platform_profile
 from app.core.linting import build_lint_artifact, lint_config, serialize_lint_artifact
+from app.core.semantic_diff import atomic_write, build_semantic_diff, serialize_semantic_diff
 
 router = APIRouter(prefix="/api")
 
@@ -230,7 +231,7 @@ def migration_mappings(project_id:str): return _migration(project_id)[1]
 def update_migration_mappings(project_id:str,mappings:MigrationMappings):
     cfg,_,root=_migration(project_id); sources={x.name:x for x in cfg.interfaces}
     if len({x.source_interface for x in mappings.interfaces})!=len(mappings.interfaces) or any(x.source_interface not in sources for x in mappings.interfaces): raise HTTPException(422,"Unknown or duplicate source interface")
-    (root/"mappings.json").write_text(mappings.model_dump_json(indent=2),encoding="utf-8"); return mappings
+    (root/"mappings.json").write_text(mappings.model_dump_json(indent=2),encoding="utf-8"); (root/"semantic-diff.json").unlink(missing_ok=True); return mappings
 
 def _plan(project_id):
     cfg,mappings,root=_migration(project_id); source_version,target_version=_versions(project_id); plan=MigrationPlanner().plan(cfg,mappings,source_version,target_version,ReferenceIntegrityValidator().validate(cfg))
@@ -256,6 +257,32 @@ def migration_plan(project_id:str):
 
 @router.get("/projects/{project_id}/migration/plan")
 def get_migration_plan(project_id:str): return migration_plan(project_id)
+
+def _semantic_diff_artifact(project_id):
+    cfg,mappings,root=_migration(project_id); source_version,target_version=_versions(project_id); plan=MigrationPlanner().plan(cfg,mappings,source_version,target_version,ReferenceIntegrityValidator().validate(cfg)); project=get_project(project_id)
+    context=lambda vendor,version:{"domain":getattr(getattr(cfg,"domain",None),"value","FIREWALL"),"vendor":vendor.value,"platform":None,"exact_version":version.selected_version if version else None}
+    source=context(plan.source_vendor,source_version); target=context(plan.target_vendor,target_version); review={key:value.model_dump(mode="json") for key,value in load_decisions(root).items()}
+    artifact=build_semantic_diff(cfg,plan.compatibility,source,target,project_id=project_id,mappings=mappings.model_dump(mode="json"),review=review)
+    return root/"semantic-diff.json",artifact
+
+@router.post("/projects/{project_id}/migration/semantic-diff")
+def generate_semantic_diff(project_id:str):
+    path,artifact=_semantic_diff_artifact(project_id); atomic_write(path,serialize_semantic_diff(artifact)); return artifact
+
+def _existing_semantic_diff(project_id):
+    path=settings.workspace_dir/project_id/"migration"/"semantic-diff.json"
+    if not path.is_file(): raise HTTPException(404,"Semantic diff has not been generated")
+    stored=json.loads(path.read_text(encoding="utf-8")); _,current=_semantic_diff_artifact(project_id)
+    if stored.get("state_fingerprint")!=current.state_fingerprint: path.unlink(missing_ok=True); raise HTTPException(409,"Semantic diff is stale; regenerate it")
+    return path,stored
+
+@router.get("/projects/{project_id}/migration/semantic-diff")
+def get_semantic_diff(project_id:str): return _existing_semantic_diff(project_id)[1]
+
+@router.get("/projects/{project_id}/migration/download/semantic-diff")
+def download_semantic_diff(project_id:str):
+    path,_=_existing_semantic_diff(project_id)
+    return FileResponse(path,media_type="application/json",filename="semantic-diff.json")
 
 @router.post("/projects/{project_id}/migration/render")
 def migration_render(project_id:str):

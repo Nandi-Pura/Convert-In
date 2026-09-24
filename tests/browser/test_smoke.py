@@ -72,11 +72,15 @@ def test_workbench_firewall_convert_copy_filter_and_download(page,live_server,tm
     assert page.get_by_role("heading",name="Import Config").is_visible()
     assert page.get_by_role("heading",name="Select Platform").is_visible()
     assert page.get_by_role("heading",name="Configuration Comparison").is_visible()
-    assert page.get_by_role("button",name="All",exact=True).is_visible()
-    assert page.locator("#column-heads").is_visible()
+    assert page.get_by_role("button",name="All",exact=True).first.is_visible()
+    assert page.get_by_role("tab",name="Semantic Diff",exact=True).is_visible()
     page.locator("#source-file").set_input_files(str(Path("examples/fortigate/basic.conf").resolve())); page.locator("#source-version").select_option("7.4.12")
-    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".entity-row").first.wait_for()
+    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-entity").first.wait_for()
     assert page.get_by_text("Source Parsing:").is_visible() and page.get_by_text("Compatibility:").is_visible()
+    page.locator(".semantic-entity").first.wait_for()
+    assert page.locator(".semantic-state.PRESERVED").count()>0 and page.locator(".semantic-state.REVIEW").count()>0
+    page.get_by_role("button",name="Preserved",exact=True).click(); assert page.locator(".semantic-entity").count()>0
+    page.get_by_role("tab",name="Raw Comparison",exact=True).click()
     assert page.locator("#column-heads").inner_text().splitlines()==["Source Config","Target Config","Semantic Diff"]
     page.get_by_role("button",name="Ready",exact=True).click(); assert page.locator(".entity-row").count()>0
     first=page.locator(".entity-row input:not([disabled])").first; first.check(); assert page.locator("#copy-selected").is_enabled()
@@ -90,8 +94,9 @@ def test_workbench_iosxe_analyze_search_and_inspect(page,live_server):
     live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
     page.locator("#source-text").fill(Path("tests/fixtures/iosxe/policy-router.cfg").read_text())
     page.locator("#source-platform").select_option("router-cisco-iosxe"); page.locator("#target-vendor").select_option("CISCO")
-    page.get_by_role("button",name="Analyze",exact=True).click(); page.locator(".entity-row").first.wait_for()
+    page.get_by_role("button",name="Analyze",exact=True).click(); page.locator(".entity-row").first.wait_for(state="attached")
     assert page.locator("#target-fields").is_visible() and page.locator("#download").is_hidden()
+    page.get_by_role("tab",name="Raw Comparison",exact=True).click()
     assert page.locator("#column-heads").inner_text().splitlines()==["Source Config","Normalized / Analysis","Findings"]
     page.locator("#search").fill("RM-MISSING"); assert page.locator(".entity-row").count()==1
     page.locator(".entity-row summary").click(); assert page.locator(".inspect").is_visible()
@@ -106,7 +111,7 @@ def test_workbench_accepts_large_json_paste(page,live_server):
     with page.expect_response(lambda response:response.url.endswith("/api/workbench/run")) as submitted: page.get_by_role("button",name="Convert",exact=True).click()
     body=submitted.value.text(); assert submitted.value.ok, f"HTTP {submitted.value.status}: {body}"
     assert "Part exceeded maximum size" not in body
-    page.locator(".entity-row").first.wait_for()
+    page.locator(".semantic-entity").first.wait_for()
 
 @pytest.mark.parametrize("width,height",[(1280,800),(1440,900),(1600,900),(1920,1080)])
 def test_quick_convert_responsive(page,live_server,width,height):

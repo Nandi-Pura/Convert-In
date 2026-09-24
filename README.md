@@ -129,6 +129,8 @@ Project workspaces contain `source.cfg`, `normalized.json`, and lightweight `ana
 
 `migration/lint-findings.json` uses `convert-in.lint-findings/v1`. The deterministic static linter reads normalized IR and CP1 findings, never changes configuration, and does not require candidate rendering. See [Configuration linter](docs/configuration-linter.md).
 
+`migration/semantic-diff.json` uses `convert-in.semantic-diff/v2`. It accounts for modeled source properties as preserved, changed, lost, or requiring review without using command-text similarity. See [Semantic diff](docs/semantic-diff.md).
+
 Analysis APIs:
 
 - `GET /api/projects/{project_id}/analysis`
@@ -143,6 +145,8 @@ Analysis APIs:
 - `GET /api/projects/{project_id}/migration/download/plan`
 - `POST|GET /api/projects/{project_id}/lint`
 - `GET /api/projects/{project_id}/migration/download/lint`
+- `POST|GET /api/projects/{project_id}/migration/semantic-diff`
+- `GET /api/projects/{project_id}/migration/download/semantic-diff`
 - `POST /api/projects/{project_id}/migration/render`
 - `GET /api/projects/{project_id}/migration/report`
 - `GET /api/projects/{project_id}/migration/download/{config|report}`

@@ -16,6 +16,7 @@ from app.core.router_migration import RouterCompatibilityEvaluator, RouterMigrat
 from app.core.renderers.registry import lookup_renderer
 from app.core.switch_assurance import SwitchCompatibilityEvaluator, SwitchReferenceIntegrityValidator
 from app.core.linting import lint_config
+from app.core.semantic_diff import build_semantic_diff
 
 
 class WorkbenchMode(StrEnum):
@@ -54,7 +55,7 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         for item in cp2:
             emitted=commands[item.entity_id];ready=bool(emitted) and item.status in {"EXACT","SUPPORTED"};status="READY" if ready else "BLOCKED" if item.entity_id in integrity.blocked_entity_ids else "REVIEW REQUIRED";entity=source_entities[item.entity_id]
             entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons or (["Intent preserved"] if ready else ["No generated target config"]),commands=emitted))
-        return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,candidate,lint_config(cfg,integrity))
+        result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,candidate,lint_config(cfg,integrity)); result["semantic_diff"]=_workbench_diff(cfg,cp2,profile,target_profile,source_version,target_version,mappings); return result
     if isinstance(cfg,RouterConfig) and mode==WorkbenchMode.CONVERT:
         integrity=RouterReferenceIntegrityValidator().validate(cfg); cp2=RouterCompatibilityEvaluator().evaluate(cfg,profile,target_profile,RouterMigrationMappings.model_validate(mappings or {}),integrity)
         renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version); renderer=renderer_type(); candidate=renderer.render(cp2); commands=defaultdict(list)
@@ -65,7 +66,7 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
             status="READY" if ready else "BLOCKED" if item.status in {"UNSUPPORTED","VERSION_NOT_VERIFIED"} else "REVIEW REQUIRED"; entity=source_entities[item.entity_id]
             entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons,commands=emitted))
         header=[f"# Domain: {profile.domain.value}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} {target_version}"]
-        return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,"\n".join(header+candidate)+"\n" if candidate else None,lint_config(cfg,integrity))
+        result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,"\n".join(header+candidate)+"\n" if candidate else None,lint_config(cfg,integrity)); result["semantic_diff"]=_workbench_diff(cfg,cp2,profile,target_profile,source_version,target_version,mappings); return result
     if mode==WorkbenchMode.ANALYZE:
         integrity=(RouterReferenceIntegrityValidator() if isinstance(cfg,RouterConfig) else ReferenceIntegrityValidator()).validate(cfg); findings=defaultdict(list)
         for finding in integrity.findings: findings[finding.source_entity_id].append(finding.reason+f" {finding.referenced_entity_name or ''}".rstrip())
@@ -94,7 +95,12 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         entities.append(_row(source_entities[item.entity_id],item.entity_type,_snippet(lines,source_entities[item.entity_id]),"\n".join(emitted) or "No generated target config",status,detail,reasons,names.get(item.entity_id),emitted))
     cp2=Counter(x.status.value for x in plan.compatibility)
     header=["# Convert-In","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Domain: {profile.domain.value.title()}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} / {target_profile.os_family} {target_version}","#","# Application-level validation only","# No device deployment performed",f"# CP0: {cfg.extraction_coverage.normalized} normalized; {cfg.extraction_coverage.recovered} recovered; {cfg.extraction_coverage.unparsed} unparsed; {cfg.extraction_coverage.unsupported} source unsupported",f"# CP1: {integrity.blocking_findings} blocking findings",f"# CP2: {dict(cp2)}",f"# Conversion: {len(set(c.entity_id for c in renderer.commands))} generated; {sum(v for k,v in cp2.items() if k in {'MANUAL_REVIEW','PARTIAL'})} manual review; {cp2.get('UNSUPPORTED',0)} unsupported; {cp2.get('VERSION_NOT_VERIFIED',0)} version not verified",""]
-    return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(header+candidate)+"\n",lint_config(cfg,integrity))
+    result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(header+candidate)+"\n",lint_config(cfg,integrity)); result["semantic_diff"]=_workbench_diff(cfg,plan.compatibility,profile,target_profile,source_version,target_version,mappings or plan.mappings.model_dump(mode="json")); return result
+
+
+def _workbench_diff(cfg,cp2,source,target,source_version,target_version,mappings):
+    context=lambda profile,version:{"domain":profile.domain.value,"vendor":profile.vendor.value,"platform":profile.platform.value,"exact_version":version}
+    return build_semantic_diff(cfg,cp2,context(source,source_version),context(target,target_version),mappings=mappings or {}).model_dump(mode="json",by_alias=True)
 
 
 def _row(entity,kind,source,target,status,detail,findings,target_title=None,commands=None):
