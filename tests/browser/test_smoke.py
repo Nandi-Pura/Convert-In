@@ -117,7 +117,41 @@ def test_workbench_accepts_large_json_paste(page,live_server):
 def test_quick_convert_responsive(page,live_server,width,height):
     live_server,_=live_server; page.set_viewport_size({"width":width,"height":height}); page.goto(live_server)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
     assert page.locator(".card").count()==3 and page.locator("aside").count()==0
     assert page.get_by_role("button",name="Convert",exact=True).is_visible()
     target=page.locator("#target-fields"); box=target.bounding_box(); viewport=page.viewport_size
     assert box and box["x"]>=0 and box["x"]+box["width"]<=viewport["width"]
+    assert page.locator(".comparison-card footer").is_visible()
+
+
+def test_target_selectors_are_registry_backed_and_independent(page,live_server):
+    live_server,_=live_server; page.goto(live_server)
+    source=page.locator("#source-platform").input_value()
+    page.locator("#target-vendor").select_option("PALO_ALTO")
+    assert page.locator("#target-platform option").all_text_contents()==["PAN-OS"]
+    assert page.locator("#target-platform").input_value()=="firewall-paloalto-panos"
+    assert "11.1" in page.locator("#target-version option").evaluate_all("options => options.map(option => option.value)")
+    page.locator("#target-vendor").select_option("FORTINET")
+    assert page.locator("#target-platform").input_value()=="firewall-fortinet-fortigate"
+    assert page.locator("#target-version").input_value()=="7.6.4"
+    assert page.locator("#source-platform").input_value()==source
+
+
+def test_target_change_invalidates_rendered_outputs(page,live_server):
+    live_server,_=live_server; page.goto(live_server)
+    page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
+    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-entity").first.wait_for()
+    page.locator("#target-version").select_option("12.2.3")
+    assert page.locator(".semantic-entity").count()==0
+    assert page.locator("#download").is_hidden()
+    assert "Run analysis" in page.locator("#semantic-list").inner_text()
+
+
+def test_comparison_panes_scroll_without_document_scroll(page,live_server):
+    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
+    page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
+    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-pane").first.wait_for()
+    page.locator(".source-pane .config-item").first.evaluate("item => item.parentElement.append(...Array.from({length:30}, () => item.cloneNode(true)))")
+    assert page.locator(".source-pane > div").evaluate("pane => pane.scrollHeight > pane.clientHeight")
+    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
