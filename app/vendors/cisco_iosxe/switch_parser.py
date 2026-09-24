@@ -71,8 +71,11 @@ class IosXeSwitchParser:
         result=[]
         for part in value.split(","):
             if "-" in part:
-                first,last=map(int,part.split("-",1));result.extend(range(first,last+1))
+                first,last=map(int,part.split("-",1))
+                if first>last:raise ValueError("invalid VLAN range")
+                result.extend(range(first,last+1))
             else:result.append(int(part))
+        if any(vlan<1 or vlan>4094 for vlan in result):raise ValueError("invalid VLAN ID")
         return result
 
     def _unknown(self,cfg,line,raw,reason,unsupported,category):

@@ -9,9 +9,9 @@ Audit date: 2026-09-21
 | Q13 | COMPLETE | `5b6e961b0102fa565d2d9262a975ff8af37c63d6` | NAT subtype, placement, route-outcome, evidence-gate framework; zero NAT emission |
 | Q14 | COMPLETE | Earlier repository history | Persisted review decisions, semantic comparison, stale-hash invalidation, review queue |
 | Q15 | COMPLETE | Earlier repository history | Staged application validation, accounting checks, guarded report package |
-| Q16 | COMPLETE, pending commit | pending | Cisco IOS-XE 17.12.1 switch parser, CP0, CP1, CP2, bounded renderer, workbench integration |
-| Q17 | NOT STARTED | none | Depends on Q16 target selection and official evidence profiles |
-| Q18 | NOT STARTED | none | Depends on Q16-Q17 semantics |
+| Q16 | COMPLETE | `fb47ab42b6c8cc19384a616d1ad8f89e6da2e868` | Cisco IOS-XE 17.12.1 switch parser, CP0, CP1, CP2, bounded renderer, workbench integration |
+| Q17 | EVIDENCE BLOCKED | none | Aruba AOS-CX 10.15 exact maintenance release, NX-OS exact version, and Junos exact switch version not verified; existing profiles remain non-emitting |
+| Q18 | PARTIAL | pending | Invalid VLAN ranges/IDs and conflicting VLAN identity hardened; MTU, speed/duplex, STP generation, cross-target matrix remain review-only or evidence-blocked |
 | Q19 | NOT STARTED | none | Router target expansion vendor/platform/exact-version scope not specified |
 | Q20 | NOT STARTED | none | Depends on Q19 semantics |
 | Q21 | NOT STARTED | none | Depends on switch and router domain decisions |

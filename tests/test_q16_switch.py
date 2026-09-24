@@ -23,6 +23,13 @@ def test_switch_cp1_and_renderer_gates():
     assert " switchport access vlan 10" in candidate and " channel-group 1 mode active" in candidate and "interface Vlan10" in candidate
     assert all(x.status in {"EXACT","SUPPORTED"} for x in cp2)
 
+def test_invalid_vlan_range_is_visible_and_duplicate_name_blocks():
+    malformed=parse_profile(TEXT.replace("10,20,99","99-10"),"switch-cisco-iosxe","17.12.1")
+    assert malformed.extraction_coverage.unparsed==1 and not malformed.ports[1].allowed_vlans
+    duplicate=parse_profile(TEXT.replace("vlan 20\n name VOICE","vlan 10\n name OTHER"),"switch-cisco-iosxe","17.12.1")
+    report=SwitchReferenceIntegrityValidator().validate(duplicate)
+    assert any(x.reason=="Conflicting VLAN identity or name." for x in report.findings)
+
 def test_switch_workbench_is_domain_scoped():
     from fastapi.testclient import TestClient
     from app.main import app

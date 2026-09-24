@@ -36,7 +36,7 @@ class SwitchReferenceIntegrityValidator:
         seen={}
         for vlan in cfg.vlans:
             if not 1<=vlan.vlan_id<=4094:add(vlan,"vlan",vlan.vlan_id,"VLAN ID must be between 1 and 4094.")
-            if vlan.vlan_id in seen:add(vlan,"vlan",vlan.vlan_id,"Duplicate VLAN ID.")
+            if vlan.vlan_id in seen:add(vlan,"vlan",vlan.vlan_id,"Conflicting VLAN identity or name." if seen[vlan.vlan_id].name!=vlan.name else "Duplicate VLAN ID.")
             seen[vlan.vlan_id]=vlan
         for interface in [*cfg.ports,*cfg.lags]:
             for vid in [getattr(interface,"access_vlan",None),interface.native_vlan,*interface.allowed_vlans]:
