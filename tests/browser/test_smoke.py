@@ -155,3 +155,14 @@ def test_comparison_panes_scroll_without_document_scroll(page,live_server):
     page.locator(".source-pane .config-item").first.evaluate("item => item.parentElement.append(...Array.from({length:30}, () => item.cloneNode(true)))")
     assert page.locator(".source-pane > div").evaluate("pane => pane.scrollHeight > pane.clientHeight")
     assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
+
+
+def test_evidence_pack_export_for_analysis_only_project(page,live_server):
+    live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
+    page.locator("#source-text").fill(Path("tests/fixtures/iosxe/policy-router.cfg").read_text())
+    page.locator("#source-platform").select_option("router-cisco-iosxe"); page.locator("#target-vendor").select_option("CISCO")
+    page.get_by_role("button",name="Analyze",exact=True).click(); page.locator(".entity-row").first.wait_for(state="attached")
+    export=page.get_by_role("button",name="Export Evidence Pack"); assert export.is_enabled()
+    export.click(); page.get_by_text("Pack ready",exact=False).wait_for(); assert "sha256:" in page.locator("#evidence-result").inner_text()
+    with page.expect_download() as download: page.get_by_role("link",name="Download",exact=True).click()
+    assert download.value.suggested_filename.startswith("convert-in-evidence-pack-")

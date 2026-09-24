@@ -2,7 +2,7 @@ import json
 from collections import Counter
 from html import escape
 from pathlib import Path
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 from fastapi import APIRouter, Form, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
@@ -27,6 +27,7 @@ from app.core.workbench import build as build_workbench
 from app.core.platforms import profiles_payload, platform_profile
 from app.core.linting import build_lint_artifact, lint_config, serialize_lint_artifact
 from app.core.semantic_diff import atomic_write, build_semantic_diff, serialize_semantic_diff
+from app.core.evidence_pack import build as build_evidence_pack
 
 router = APIRouter(prefix="/api")
 
@@ -56,8 +57,36 @@ def run_workbench(source:WorkbenchSource):
     if not selected: raise HTTPException(422,"Source version was not verified. Select it explicitly.")
     target_profile=source.target_profile or ("router-huawei-vrp" if vendor==Vendor.CISCO_IOSXE else "firewall-paloalto-panos")
     target_version=source.target_version if source.target_profile else ("" if vendor==Vendor.CISCO_IOSXE else source.target_version)
-    try: return build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings)
+    try:
+        result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings)
+        project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"]},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); base=settings.workspace_dir.resolve()
+        if base not in root.parents: raise HTTPException(400,"Invalid workspace path")
+        root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
+        source_profile=platform_profile(result["source_profile"]["id"]); target=platform_profile(result["target_profile"]["id"])
+        context={"source_filename":"source.cfg","source":{"domain":source_profile.domain.value,"vendor":source_profile.vendor.value,"platform":source_profile.platform.value,"exact_version":result["source_profile"]["version"],"profile_id":source_profile.id},"target":{"domain":target.domain.value,"vendor":target.vendor.value,"platform":target.platform.value,"exact_version":result["target_profile"]["version"],"profile_id":target.id}}
+        (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
+        if result.get("candidate"):
+            migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
+        result["project_id"]=project; return result
     except ValueError as exc: raise HTTPException(422,str(exc)) from exc
+
+@router.post("/projects/{project_id}/migration/evidence-pack")
+def create_evidence_pack(project_id:str):
+    try: return build_evidence_pack(project_id,settings.workspace_dir)[0]
+    except FileNotFoundError as exc: raise HTTPException(404,str(exc)) from exc
+    except (ValueError,OSError) as exc: raise HTTPException(409,str(exc)) from exc
+
+@router.get("/projects/{project_id}/migration/evidence-pack")
+def get_evidence_pack(project_id:str):
+    path=settings.workspace_dir/project_id/"migration"/"evidence-pack"/"manifest.json"
+    if not path.is_file(): raise HTTPException(404,"Evidence pack has not been generated")
+    try: return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError,json.JSONDecodeError) as exc: raise HTTPException(409,"Evidence pack manifest is invalid") from exc
+
+@router.get("/projects/{project_id}/migration/download/evidence-pack")
+def download_evidence_pack(project_id:str):
+    _,archive=build_evidence_pack(project_id,settings.workspace_dir) if not (settings.workspace_dir/project_id/"migration"/f"convert-in-evidence-pack-{project_id}.zip").is_file() else (None,settings.workspace_dir/project_id/"migration"/f"convert-in-evidence-pack-{project_id}.zip")
+    return FileResponse(archive,media_type="application/zip",filename=f"convert-in-evidence-pack-{project_id}.zip")
 
 @router.get("/convert/profiles")
 def quick_convert_profiles(): return {"profiles":quick_profiles()}

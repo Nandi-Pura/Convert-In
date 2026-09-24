@@ -131,6 +131,8 @@ Project workspaces contain `source.cfg`, `normalized.json`, and lightweight `ana
 
 `migration/semantic-diff.json` uses `convert-in.semantic-diff/v2`. It accounts for modeled source properties as preserved, changed, lost, or requiring review without using command-text similarity. See [Semantic diff](docs/semantic-diff.md).
 
+`migration/evidence-pack/manifest.json` uses `convert-in.evidence-pack/v1`. It packages deterministic checksums and existing migration evidence while excluding raw source configuration. See [Migration evidence pack](docs/evidence-pack.md).
+
 Analysis APIs:
 
 - `GET /api/projects/{project_id}/analysis`

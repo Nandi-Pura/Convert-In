@@ -20,6 +20,8 @@ The artifact represents review-only migration intent. It is versioned, evidence-
 
 Semantic Diff v2 consumes normalized IR and CP2 evidence to account for source properties as `PRESERVED`, `CHANGED`, `LOST`, or `REVIEW`. Unknown behavior remains `REVIEW`; command absence never establishes loss. The deterministic `migration/semantic-diff.json` artifact works without candidate output. See [semantic-diff.md](semantic-diff.md).
 
+The [migration evidence pack](evidence-pack.md) aggregates current artifacts for offline review without changing semantic results. Raw source configuration remains excluded; analysis-only projects are supported.
+
 FortiGate scope and limitations are documented in [fortigate-to-pan.md](fortigate-to-pan.md).
 
 ## ASA to PAN-OS scope
