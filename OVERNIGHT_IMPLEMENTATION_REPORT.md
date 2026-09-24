@@ -20,7 +20,7 @@ Audit date: 2026-09-21
 | Q24 | COMPLETE | current Q24 commit | Deterministic normalized-IR linter, CP1 adapters, versioned artifact, API, and compact workbench findings view |
 | Q25 | COMPLETE | current Q25 commit | Deterministic property-level semantic diff v2, persistence API, structured Card 3 view |
 | Q26 | COMPLETE | current Q26 commit | Deterministic local evidence pack, checksums, privacy-safe source metadata, API, and workbench export |
-| Q27 | NOT STARTED | none | Existing SQLite/workspace persistence requires reproducibility contract |
+| Q27 | COMPLETE | current Q27 commit | Canonical project manifest, exact-profile reopen, revision invalidation, safe export/import, validation, API, and compact controls |
 | Q28 | NOT STARTED | none | Plugin trust, discovery, compatibility, and isolation contract not specified |
 | Q29 | NOT STARTED | none | Depends on Q28 and a selected next vendor |
 | Q30 | NOT STARTED | none | Depends on unresolved release gates |

@@ -6,6 +6,8 @@ The pack records exact source and target profiles, artifact statuses, summaries,
 
 Raw source configuration is excluded. `source/source-metadata.json` records its filename, byte size, line count, profile, and chunked SHA-256 hash. Candidate output is copied unchanged when present; analysis-only projects remain exportable. All candidate content requires engineer review. No deployment occurs.
 
+Evidence Pack differs from Project Export: Project Export contains source configuration so another local workspace can resume the project. Evidence Pack continues to exclude source configuration by default.
+
 The fingerprint is SHA-256 over compact UTF-8 JSON with sorted keys and no `fingerprint` field. `checksums.sha256` covers every other pack file in forward-slash path order. Validate with `sha256sum -c checksums.sha256` from the pack directory.
 
 The directory and ZIP omit timestamps, host data, user data, absolute paths, traversal paths, source bytes, and remote content. `REVIEW`, `UNSUPPORTED`, and `VERSION_NOT_VERIFIED` retain their existing meanings; packaging does not reinterpret them.

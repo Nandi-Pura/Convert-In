@@ -22,6 +22,8 @@ Semantic Diff v2 consumes normalized IR and CP2 evidence to account for source p
 
 The [migration evidence pack](evidence-pack.md) aggregates current artifacts for offline review without changing semantic results. Raw source configuration remains excluded; analysis-only projects are supported.
 
+[Project persistence](project-persistence.md) records source identity, exact profiles, mappings, reviews, and artifact revisions. Project Export includes source configuration for resumption and must be handled as sensitive data.
+
 FortiGate scope and limitations are documented in [fortigate-to-pan.md](fortigate-to-pan.md).
 
 ## ASA to PAN-OS scope

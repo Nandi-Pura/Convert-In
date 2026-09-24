@@ -1,9 +1,9 @@
-import json
+import json,zipfile
 from collections import Counter
 from html import escape
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid4, uuid5
-from fastapi import APIRouter, Form, HTTPException, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 from app.config import settings
@@ -28,6 +28,7 @@ from app.core.platforms import profiles_payload, platform_profile
 from app.core.linting import build_lint_artifact, lint_config, serialize_lint_artifact
 from app.core.semantic_diff import atomic_write, build_semantic_diff, serialize_semantic_diff
 from app.core.evidence_pack import build as build_evidence_pack
+from app.core.project_state import create_manifest,export_project,import_project,invalidate,load_manifest,validate_project_state
 
 router = APIRouter(prefix="/api")
 
@@ -67,12 +68,14 @@ def run_workbench(source:WorkbenchSource):
         (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
         if result.get("candidate"):
             migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
+        create_manifest(root,project,context)
         result["project_id"]=project; return result
     except ValueError as exc: raise HTTPException(422,str(exc)) from exc
 
 @router.post("/projects/{project_id}/migration/evidence-pack")
 def create_evidence_pack(project_id:str):
-    try: return build_evidence_pack(project_id,settings.workspace_dir)[0]
+    try:
+        result=build_evidence_pack(project_id,settings.workspace_dir)[0]; load_manifest(settings.workspace_dir,project_id); return result
     except FileNotFoundError as exc: raise HTTPException(404,str(exc)) from exc
     except (ValueError,OSError) as exc: raise HTTPException(409,str(exc)) from exc
 
@@ -87,6 +90,39 @@ def get_evidence_pack(project_id:str):
 def download_evidence_pack(project_id:str):
     _,archive=build_evidence_pack(project_id,settings.workspace_dir) if not (settings.workspace_dir/project_id/"migration"/f"convert-in-evidence-pack-{project_id}.zip").is_file() else (None,settings.workspace_dir/project_id/"migration"/f"convert-in-evidence-pack-{project_id}.zip")
     return FileResponse(archive,media_type="application/zip",filename=f"convert-in-evidence-pack-{project_id}.zip")
+
+@router.get("/projects/{project_id}")
+def project_state(project_id:str):
+    try:
+        manifest=load_manifest(settings.workspace_dir,project_id); root=settings.workspace_dir/project_id
+        return {"manifest":manifest,"source_text":(root/"source.cfg").read_text(encoding="utf-8"),"result":json.loads((root/"workbench-result.json").read_text(encoding="utf-8"))}
+    except FileNotFoundError as exc: raise HTTPException(404,str(exc)) from exc
+    except ValueError as exc: raise HTTPException(409,str(exc)) from exc
+
+@router.post("/projects/{project_id}/validate")
+def validate_project(project_id:str):
+    try: return validate_project_state(settings.workspace_dir,project_id)
+    except FileNotFoundError as exc: raise HTTPException(404,str(exc)) from exc
+    except ValueError as exc: raise HTTPException(409,str(exc)) from exc
+
+@router.get("/projects/{project_id}/export")
+def project_export(project_id:str):
+    try: path=export_project(settings.workspace_dir,project_id)
+    except FileNotFoundError as exc: raise HTTPException(404,str(exc)) from exc
+    return FileResponse(path,media_type="application/zip",filename=path.name,headers={"X-Convert-In-Sensitive":"source-configuration-included"})
+
+@router.post("/projects/import")
+async def project_import(project:UploadFile=File(...)):
+    temporary=settings.workspace_dir/f".import-{uuid4()}.zip"; size=0
+    try:
+        with temporary.open("wb") as output:
+            while chunk:=await project.read(1024*1024):
+                size+=len(chunk)
+                if size>settings.max_request_bytes: raise HTTPException(413,"Project archive exceeds request limit")
+                output.write(chunk)
+        return import_project(settings.workspace_dir,temporary)
+    except (ValueError,zipfile.BadZipFile) as exc: raise HTTPException(422,str(exc)) from exc
+    finally: temporary.unlink(missing_ok=True)
 
 @router.get("/convert/profiles")
 def quick_convert_profiles(): return {"profiles":quick_profiles()}
@@ -260,7 +296,7 @@ def migration_mappings(project_id:str): return _migration(project_id)[1]
 def update_migration_mappings(project_id:str,mappings:MigrationMappings):
     cfg,_,root=_migration(project_id); sources={x.name:x for x in cfg.interfaces}
     if len({x.source_interface for x in mappings.interfaces})!=len(mappings.interfaces) or any(x.source_interface not in sources for x in mappings.interfaces): raise HTTPException(422,"Unknown or duplicate source interface")
-    (root/"mappings.json").write_text(mappings.model_dump_json(indent=2),encoding="utf-8"); (root/"semantic-diff.json").unlink(missing_ok=True); return mappings
+    atomic_write(root/"mappings.json",mappings.model_dump_json(indent=2)+"\n"); invalidate(settings.workspace_dir,project_id,"mapping"); return mappings
 
 def _plan(project_id):
     cfg,mappings,root=_migration(project_id); source_version,target_version=_versions(project_id); plan=MigrationPlanner().plan(cfg,mappings,source_version,target_version,ReferenceIntegrityValidator().validate(cfg))
@@ -348,6 +384,7 @@ def update_migration_review(project_id:str,item_id:str,decision:ReviewDecision):
     if not item: raise HTTPException(404,"Review item not found")
     if decision.semantic_hash!=item.semantic_hash: raise HTTPException(409,"Review item changed; reload before saving a decision")
     decision.semantic_hash=item.semantic_hash; decisions=update_decision(root,item_id,decision)
+    invalidate(settings.workspace_dir,project_id,"review")
     return next(x for x in build_review(_migration(project_id)[0],plan,getattr(_review_renderer(plan),"commands",[]),decisions).items if x.id==item_id)
 
 def _review_renderer(plan):

@@ -133,9 +133,15 @@ Project workspaces contain `source.cfg`, `normalized.json`, and lightweight `ana
 
 `migration/evidence-pack/manifest.json` uses `convert-in.evidence-pack/v1`. It packages deterministic checksums and existing migration evidence while excluding raw source configuration. See [Migration evidence pack](docs/evidence-pack.md).
 
+`project.json` uses `convert-in.project/v1` to preserve exact profiles, source identity, revisions, and artifact currency. Project Export includes sensitive source configuration; Evidence Pack does not. See [Project persistence](docs/project-persistence.md).
+
 Analysis APIs:
 
 - `GET /api/projects/{project_id}/analysis`
+- `GET /api/projects/{project_id}`
+- `POST /api/projects/{project_id}/validate`
+- `GET /api/projects/{project_id}/export`
+- `POST /api/projects/import`
 - `GET /api/projects/{project_id}/graph`
 - `GET /api/projects/{project_id}/impact/{object_id}`
 - `GET /api/projects/{project_id}/objects/{object_id}/references`

@@ -166,3 +166,15 @@ def test_evidence_pack_export_for_analysis_only_project(page,live_server):
     export.click(); page.get_by_text("Pack ready",exact=False).wait_for(); assert "sha256:" in page.locator("#evidence-result").inner_text()
     with page.expect_download() as download: page.get_by_role("link",name="Download",exact=True).click()
     assert download.value.suggested_filename.startswith("convert-in-evidence-pack-")
+
+
+def test_project_reopen_restores_exact_target_without_conversion(page,live_server):
+    live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
+    page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
+    page.locator("#source-platform").select_option("firewall-fortinet-fortigate"); page.locator("#target-version").select_option("11.1")
+    with page.expect_response("**/api/workbench/run") as run: page.get_by_role("button",name="Convert",exact=True).click()
+    project=run.value.json()["project_id"]; page.locator(".semantic-entity").first.wait_for()
+    requests=[]; page.on("request",lambda request: requests.append(request.url) if "/api/workbench/run" in request.url else None)
+    page.evaluate("id => openProject(id)",project); page.get_by_text("Saved",exact=False).wait_for()
+    assert page.locator("#target-version").input_value()=="11.1" and not requests
+    assert page.get_by_role("button",name="Export Project").is_enabled()
