@@ -40,7 +40,7 @@ def _json(path:Path):
     except (OSError,UnicodeError,json.JSONDecodeError) as exc: raise ValueError(f"Invalid JSON artifact: {path.name}") from exc
 
 def _counts(result,key,names):
-    value=result.get(key,{})
+    value=result.get(key) or {}
     if isinstance(value,list): value={name:sum(1 for item in value if item.get("severity")==name) for name in names}
     return {name:int(value.get(name,value.get(name.upper(),0)) or 0) for name in names}
 
