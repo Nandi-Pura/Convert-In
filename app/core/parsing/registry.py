@@ -5,6 +5,7 @@ from app.vendors.fortigate.parser import FortiGateParser
 from app.vendors.paloalto.parser import PaloAltoParser
 from app.vendors.juniper_srx.parser import JunosSrxParser
 from app.vendors.cisco_iosxe.parser import IosXeRouterParser
+from app.vendors.cisco_iosxe.switch_parser import IosXeSwitchParser
 from app.core.platforms import platform_profile
 
 PARSERS = {p.vendor: p for p in (AsaParser(), FortiGateParser(), PaloAltoParser(), JunosSrxParser(), IosXeRouterParser())}
@@ -24,4 +25,11 @@ def parse_config(text: str, vendor: Vendor):
 
 def lookup_parser(profile_id:str,version:str):
     profile=platform_profile(profile_id,version)
+    if profile and profile.source_parser=="IosXeSwitchParser":return IosXeSwitchParser()
     return PARSERS.get(profile.source_vendor) if profile and profile.source_parser else None
+
+def parse_profile(text:str,profile_id:str,version:str):
+    profile=platform_profile(profile_id,version)
+    if profile and profile.source_parser=="IosXeSwitchParser":return IosXeSwitchParser().parse(text)
+    if not profile or not profile.source_parser:raise ValueError("Invalid source platform or version profile.")
+    return parse_config(text,profile.source_vendor)

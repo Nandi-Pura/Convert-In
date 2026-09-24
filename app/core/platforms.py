@@ -47,7 +47,7 @@ PLATFORM_PROFILES=(
     VendorPlatformProfile("router-juniper-junos",NetworkVendor.JUNIPER,Platform.JUNOS,"Junos OS",ConfigDomain.ROUTER,("23.4R2",),target_renderer="JunosRouterRenderer",capabilities=("interface_ipv4","static_route","prefix_list"),documentation_profile=("JUNOS-23.4R2-RELEASE",),conversion_supported=True,target_capability=TargetCapability.BOUNDED_RENDERER),
     VendorPlatformProfile("router-huawei-vrp",NetworkVendor.HUAWEI,Platform.VRP,"VRP",ConfigDomain.ROUTER,()),
     VendorPlatformProfile("router-aruba-aoscx",NetworkVendor.ARUBA,Platform.AOS_CX,"AOS-CX",ConfigDomain.ROUTER,()),
-    VendorPlatformProfile("switch-cisco-iosxe",NetworkVendor.CISCO,Platform.IOS_XE,"IOS-XE",ConfigDomain.SWITCH,()),
+    VendorPlatformProfile("switch-cisco-iosxe",NetworkVendor.CISCO,Platform.IOS_XE,"IOS-XE",ConfigDomain.SWITCH,("17.12.1",),Vendor.CISCO_IOSXE,"IosXeSwitchParser","IosXeSwitchRenderer",capabilities=("vlan","interface","lag","svi"),documentation_profile=("IOSXE-17.12.1-C9300-COMMANDS",),analysis_supported=True,conversion_supported=True,target_capability=TargetCapability.BOUNDED_RENDERER,target_versions=("17.12.1",)),
     VendorPlatformProfile("switch-cisco-nxos",NetworkVendor.CISCO,Platform.NX_OS,"NX-OS",ConfigDomain.SWITCH,()),
     VendorPlatformProfile("switch-aruba-aoscx",NetworkVendor.ARUBA,Platform.AOS_CX,"AOS-CX",ConfigDomain.SWITCH,()),
     VendorPlatformProfile("switch-juniper-junos",NetworkVendor.JUNIPER,Platform.JUNOS,"Junos OS",ConfigDomain.SWITCH,()),

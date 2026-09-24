@@ -4,8 +4,9 @@ from enum import StrEnum
 from app.core.migration import MigrationPlanner, default_mappings
 from app.core.migration.models import MigrationMappings
 from app.core.migration.registry import SUPPORTED_MIGRATION_PAIRS
-from app.core.models import RouterConfig, Vendor
+from app.core.models import RouterConfig, SwitchConfig, Vendor
 from app.core.parsing import parse_config
+from app.core.parsing.registry import parse_profile
 from app.core.platforms import platform_profile
 from app.core.reference_integrity import ReferenceIntegrityValidator
 from app.core.renderers import PaloAltoRenderer
@@ -13,6 +14,7 @@ from app.core.router_assurance import RouterReferenceIntegrityValidator
 from app.core.versions import resolve_context
 from app.core.router_migration import RouterCompatibilityEvaluator, RouterMigrationMappings
 from app.core.renderers.registry import lookup_renderer
+from app.core.switch_assurance import SwitchCompatibilityEvaluator, SwitchReferenceIntegrityValidator
 
 
 class WorkbenchMode(StrEnum):
@@ -20,7 +22,7 @@ class WorkbenchMode(StrEnum):
 
 
 LABELS={Vendor.ASA:"Cisco ASA",Vendor.FORTIGATE:"FortiGate",Vendor.JUNIPER_SRX:"Juniper SRX",Vendor.CISCO_IOSXE:"Cisco"}
-TYPE_LABELS={"address":"Address","address_group":"Address Group","service":"Service","service_group":"Service Group","security_policy":"Security Rule","nat_policy":"NAT Rule","route":"Static Route","interface":"Interface","vrf":"VRF","prefix_list":"Prefix List","route_policy":"Route Map","ospf_process":"OSPF Process","bgp_neighbor":"BGP Neighbor"}
+TYPE_LABELS={"address":"Address","address_group":"Address Group","service":"Service","service_group":"Service Group","security_policy":"Security Rule","nat_policy":"NAT Rule","route":"Static Route","interface":"Interface","vlan":"VLAN","lag":"LAG","svi":"SVI","vrf":"VRF","prefix_list":"Prefix List","route_policy":"Route Map","ospf_process":"OSPF Process","bgp_neighbor":"BGP Neighbor"}
 
 
 def _snippet(lines,entity):
@@ -41,7 +43,17 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         target_profile=platform_profile(target_profile_id)
     if not target_profile or target_profile.domain!=profile.domain:raise ValueError("Source and target domains must match.")
     mode=WorkbenchMode.CONVERT if lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version) else WorkbenchMode.ANALYZE
-    cfg=parse_config(text,vendor); lines=text.splitlines()
+    cfg=parse_profile(text,profile.id,source_version); lines=text.splitlines()
+    if isinstance(cfg,SwitchConfig):
+        integrity=SwitchReferenceIntegrityValidator().validate(cfg);cp2=SwitchCompatibilityEvaluator().evaluate(cfg,profile,target_profile,mappings or {},integrity);renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version);commands=defaultdict(list);candidate=None
+        if renderer_type:
+            renderer=renderer_type();rendered=renderer.render(cp2);candidate="\n".join(rendered)+"\n" if rendered else None
+            for command in renderer.commands:commands[command.entity_id].append(command.text)
+        source_entities={x.id:x for xs in (cfg.vlans,cfg.ports,cfg.lags,cfg.svis) for x in xs};entities=[]
+        for item in cp2:
+            emitted=commands[item.entity_id];ready=bool(emitted) and item.status in {"EXACT","SUPPORTED"};status="READY" if ready else "BLOCKED" if item.entity_id in integrity.blocked_entity_ids else "REVIEW REQUIRED";entity=source_entities[item.entity_id]
+            entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons or (["Intent preserved"] if ready else ["No generated target config"]),commands=emitted))
+        return _result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,candidate)
     if isinstance(cfg,RouterConfig) and mode==WorkbenchMode.CONVERT:
         integrity=RouterReferenceIntegrityValidator().validate(cfg); cp2=RouterCompatibilityEvaluator().evaluate(cfg,profile,target_profile,RouterMigrationMappings.model_validate(mappings or {}),integrity)
         renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version); renderer=renderer_type(); candidate=renderer.render(cp2); commands=defaultdict(list)

@@ -117,8 +117,11 @@ class RouterConfig(BaseModel):
 
 
 class VLAN(BaseModel):
+    id: str = ""
     vlan_id: int
     name: str | None = None
+    provenance: Provenance | None = None
+    vendor_extensions: dict[str, Any] = Field(default_factory=dict)
 
 
 class VLANMembership(BaseModel):
@@ -127,25 +130,43 @@ class VLANMembership(BaseModel):
 
 
 class SwitchPort(BaseModel):
+    id: str = ""
     name: str
     mode: str | None = None
+    access_vlan: int | None = None
     native_vlan: int | None = None
     allowed_vlans: list[int] = Field(default_factory=list)
     description: str | None = None
     enabled: bool = True
     lag: str | None = None
+    provenance: Provenance | None = None
+    vendor_extensions: dict[str, Any] = Field(default_factory=dict)
 
 
 class LAG(BaseModel):
+    id: str = ""
     name: str
     members: list[str] = Field(default_factory=list)
     lacp: bool = False
+    lacp_mode: str | None = None
+    mode: str | None = None
+    native_vlan: int | None = None
+    allowed_vlans: list[int] = Field(default_factory=list)
+    description: str | None = None
+    enabled: bool = True
+    provenance: Provenance | None = None
+    vendor_extensions: dict[str, Any] = Field(default_factory=dict)
 
 
 class SVI(BaseModel):
+    id: str = ""
     name: str
     vlan_id: int
     addresses: list[str] = Field(default_factory=list)
+    description: str | None = None
+    enabled: bool = True
+    provenance: Provenance | None = None
+    vendor_extensions: dict[str, Any] = Field(default_factory=dict)
 
 
 class STPConfig(BaseModel):
@@ -167,3 +188,8 @@ class SwitchConfig(BaseModel):
     svis: list[SVI] = Field(default_factory=list)
     stp: STPConfig | None = None
     acl_references: list[SwitchACLReference] = Field(default_factory=list)
+    vendor_extensions: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[ParseIssue] = Field(default_factory=list)
+    unparsed_constructs: list[UnparsedConstruct] = Field(default_factory=list)
+    extraction_coverage: ExtractionCoverageReport | None = None

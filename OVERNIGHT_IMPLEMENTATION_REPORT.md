@@ -9,7 +9,7 @@ Audit date: 2026-09-21
 | Q13 | COMPLETE | `5b6e961b0102fa565d2d9262a975ff8af37c63d6` | NAT subtype, placement, route-outcome, evidence-gate framework; zero NAT emission |
 | Q14 | COMPLETE | Earlier repository history | Persisted review decisions, semantic comparison, stale-hash invalidation, review queue |
 | Q15 | COMPLETE | Earlier repository history | Staged application validation, accounting checks, guarded report package |
-| Q16 | BLOCKED | none | Switch vendor/platform/exact-version product boundary not specified; current product explicitly makes no switch conversion claim |
+| Q16 | COMPLETE, pending commit | pending | Cisco IOS-XE 17.12.1 switch parser, CP0, CP1, CP2, bounded renderer, workbench integration |
 | Q17 | NOT STARTED | none | Depends on Q16 target selection and official evidence profiles |
 | Q18 | NOT STARTED | none | Depends on Q16-Q17 semantics |
 | Q19 | NOT STARTED | none | Router target expansion vendor/platform/exact-version scope not specified |
@@ -42,6 +42,8 @@ Audit date: 2026-09-21
 - Installed wheel: not run; Q30 not reached
 - CI: `CI_STATUS_NOT_OBSERVED_LOCALLY`
 
+Q16 validation: 263 Python tests passed; 9 browser tests passed; Python compilation, JavaScript syntax, documentation registry, realistic benchmark, and `git diff --check` passed.
+
 ## Repository
 
 - Branch: `feature/roadmap-q12-q30`
@@ -52,6 +54,8 @@ Audit date: 2026-09-21
 
 Q12 exact-version semantics remain `VERSION_NOT_VERIFIED` for interface/zone context, disabled rules, ICMP, source ports, multiple service ranges, nested groups, FQDN objects, IPv6 objects, logging, schedules, and static-route options on ASA 9.24, FortiOS 7.6.4, PAN-OS 11.1, and SRX 23.4R2. PAN latest-release metadata and later SRX exact-release applicability remain unverified. These states do not affect existing bounded renderer capabilities.
 
-## Architectural blocker
+## Q16 switch domain
 
-Q16 requires a switch MVP but no source vendor, target vendor, exact OS versions, or bounded feature set is recorded. Choosing those values would define product architecture and vendor semantics. Supply that matrix before switch parser or renderer work. Q19 and Q28 need equivalent product contracts.
+`SwitchConfig` is active without merging router semantics. Cisco Catalyst 9300 IOS-XE 17.12.1 supports bounded VLAN, access, trunk, allowed/native VLAN, description, admin state, Port-Channel, LACP membership, and basic IPv4 SVI extraction and rendering. CP0 accounts for every semantic construct. CP1 validates VLAN, LAG, member, and SVI dependencies with deterministic finding IDs. CP2 emits only supported entities. Physical interface identity is preserved only for the same exact profile; cross-profile conversion requires confirmed entity-scoped mappings.
+
+STP and the other excluded switch features remain visible as source-unsupported or manual review. Aruba AOS-CX 10.15 remains `VERSION_NOT_VERIFIED` because an exact maintenance release was not independently verified from accessible official documentation.
