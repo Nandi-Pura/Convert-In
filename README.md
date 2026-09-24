@@ -125,6 +125,8 @@ Analysis and migration consume the normalized `FirewallConfig` IR. Conversion do
 
 Project workspaces contain `source.cfg`, `normalized.json`, and lightweight `analysis.json`. Migration adds a separate `migration/` artifact directory and never modifies source or normalized artifacts.
 
+`migration/migration-plan.json` uses the versioned `convert-in.migration-plan/v1` contract. It is a deterministic, fingerprinted, review-only intent artifact. It remains available when rendering is blocked and grants no permission to emit unsupported semantics.
+
 Analysis APIs:
 
 - `GET /api/projects/{project_id}/analysis`
@@ -135,6 +137,8 @@ Analysis APIs:
 - `GET /api/projects/{project_id}/semantic-compatibility`
 - `GET|PUT /api/projects/{project_id}/migration/mappings`
 - `POST /api/projects/{project_id}/migration/plan`
+- `GET /api/projects/{project_id}/migration/plan`
+- `GET /api/projects/{project_id}/migration/download/plan`
 - `POST /api/projects/{project_id}/migration/render`
 - `GET /api/projects/{project_id}/migration/report`
 - `GET /api/projects/{project_id}/migration/download/{config|report}`

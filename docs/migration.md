@@ -14,6 +14,10 @@ The sticky source/target context remains visible across post-analysis views. Gen
 
 Migration code consumes normalized IR only. It does not parse source syntax. A central pair registry selects the Cisco ASA or FortiGate source adapter and the single PAN-OS renderer. Every normalized entity receives one `EXACT`, `SUPPORTED`, `PARTIAL`, `MANUAL_REVIEW`, or `UNSUPPORTED` compatibility record. Omitted entities therefore remain visible in the report.
 
+`MigrationPlan` is internal planner state. Q23 converts it through one explicit contract boundary to `MigrationPlanArtifact` v1, then serializes `migration/migration-plan.json`. The `convert-in.migration-plan/v1` artifact records version context, mappings, entity decisions, known dependencies, evidence references, blocked items, advisories, counts, and a deterministic `sha256:` fingerprint. Canonical serialization uses sorted JSON keys and stable collection ordering. It contains no source configuration, timestamps, credentials, or workstation paths.
+
+The artifact represents review-only migration intent. It is versioned, evidence-bounded, non-executable, and available even when candidate rendering is blocked. It does not authorize unsupported candidate generation or alter renderer evidence gates.
+
 FortiGate scope and limitations are documented in [fortigate-to-pan.md](fortigate-to-pan.md).
 
 ## ASA to PAN-OS scope
@@ -40,6 +44,7 @@ Generated files are always **Candidate Configuration — Engineer Review Require
 - `migration/migration-report.json`
 - `migration/compatibility.json`
 - `migration/mappings.json`
+- `migration/migration-plan.json`
 - `migration/security-rule-ordering.json` when security rules are generated
 
 `nat-rule-ordering.json` is not produced because no NAT definition currently passes the evidence gate.

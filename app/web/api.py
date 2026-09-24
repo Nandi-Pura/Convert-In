@@ -13,7 +13,7 @@ from app.core.graph import GraphScope, GraphSummary, serialize_graph, resolve_no
 from app.core.parsing import detect_vendor, parse_config
 from app.persistence.repositories import create_project
 from app.persistence.repositories.projects import get_project
-from app.core.migration import MigrationMappings, MigrationPlanner, build_report, default_mappings, migration_pair
+from app.core.migration import MigrationMappings, MigrationPlanner, build_plan_artifact, build_report, default_mappings, migration_pair, serialize_plan_artifact
 from app.core.renderers import PaloAltoRenderer
 from app.core.migration.validation import validate_candidate
 from app.core.review import ReviewDecision,build_review,export_package,load_decisions,update_decision,validate_migration
@@ -207,6 +207,7 @@ def update_migration_mappings(project_id:str,mappings:MigrationMappings):
 def _plan(project_id):
     cfg,mappings,root=_migration(project_id); source_version,target_version=_versions(project_id); plan=MigrationPlanner().plan(cfg,mappings,source_version,target_version,ReferenceIntegrityValidator().validate(cfg))
     (root/"compatibility.json").write_text(json.dumps([x.model_dump(mode="json") for x in plan.compatibility],indent=2),encoding="utf-8")
+    artifact=build_plan_artifact(plan,cfg); (root/"migration-plan.json").write_text(serialize_plan_artifact(artifact),encoding="utf-8")
     return plan,root
 
 @router.get("/projects/{project_id}/migration/compatibility")
@@ -221,7 +222,12 @@ def semantic_compatibility(project_id:str):
     return {"summary":dict(counts),"items":plan.compatibility}
 
 @router.post("/projects/{project_id}/migration/plan")
-def migration_plan(project_id:str): return _plan(project_id)[0]
+def migration_plan(project_id:str):
+    plan,root=_plan(project_id)
+    return json.loads((root/"migration-plan.json").read_text(encoding="utf-8"))
+
+@router.get("/projects/{project_id}/migration/plan")
+def get_migration_plan(project_id:str): return migration_plan(project_id)
 
 @router.post("/projects/{project_id}/migration/render")
 def migration_render(project_id:str):
@@ -311,3 +317,8 @@ def download_migration_report(project_id:str):
     _,_,root=_migration(project_id); path=root/"migration-report.json"
     if not path.is_file(): raise HTTPException(404,"Migration has not been rendered")
     return FileResponse(path,media_type="application/json",filename="migration-report.json")
+
+@router.get("/projects/{project_id}/migration/download/plan")
+def download_migration_plan(project_id:str):
+    _,root=_plan(project_id)
+    return FileResponse(root/"migration-plan.json",media_type="application/json",filename="migration-plan.json")

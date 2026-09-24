@@ -16,7 +16,7 @@ Audit date: 2026-09-21
 | Q20 | NOT STARTED | none | Depends on Q19 semantics |
 | Q21 | NOT STARTED | none | Depends on switch and router domain decisions |
 | Q22 | NOT STARTED | none | Existing firewall dependency graph requires cross-domain scope decisions |
-| Q23 | NOT STARTED | none | Migration-plan output contract not specified |
+| Q23 | COMPLETE | current Q23 commit | Deterministic `convert-in.migration-plan/v1` review artifact, SHA-256 fingerprint, persistence, and API download |
 | Q24 | NOT STARTED | none | Existing analysis findings require linter rule and severity contract |
 | Q25 | NOT STARTED | none | Existing semantic comparison requires v2 contract |
 | Q26 | NOT STARTED | none | Existing review package requires evidence-pack manifest contract |
@@ -43,6 +43,8 @@ Audit date: 2026-09-21
 - CI: `CI_STATUS_NOT_OBSERVED_LOCALLY`
 
 Q16 validation: 263 Python tests passed; 9 browser tests passed; Python compilation, JavaScript syntax, documentation registry, realistic benchmark, and `git diff --check` passed.
+
+Q23 validation: 267 Python tests passed; 3 focused Q23 tests passed; 9 browser tests passed; Python compilation, JavaScript syntax, documentation registry, realistic benchmark, and `git diff --check` passed. Q17 and Q19 remain evidence blocked. Q20 remains not started. Q21 and Q22 remain not started.
 
 ## Repository
 
