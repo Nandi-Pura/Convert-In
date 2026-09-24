@@ -127,6 +127,8 @@ Project workspaces contain `source.cfg`, `normalized.json`, and lightweight `ana
 
 `migration/migration-plan.json` uses the versioned `convert-in.migration-plan/v1` contract. It is a deterministic, fingerprinted, review-only intent artifact. It remains available when rendering is blocked and grants no permission to emit unsupported semantics.
 
+`migration/lint-findings.json` uses `convert-in.lint-findings/v1`. The deterministic static linter reads normalized IR and CP1 findings, never changes configuration, and does not require candidate rendering. See [Configuration linter](docs/configuration-linter.md).
+
 Analysis APIs:
 
 - `GET /api/projects/{project_id}/analysis`
@@ -139,6 +141,8 @@ Analysis APIs:
 - `POST /api/projects/{project_id}/migration/plan`
 - `GET /api/projects/{project_id}/migration/plan`
 - `GET /api/projects/{project_id}/migration/download/plan`
+- `POST|GET /api/projects/{project_id}/lint`
+- `GET /api/projects/{project_id}/migration/download/lint`
 - `POST /api/projects/{project_id}/migration/render`
 - `GET /api/projects/{project_id}/migration/report`
 - `GET /api/projects/{project_id}/migration/download/{config|report}`

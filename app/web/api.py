@@ -25,6 +25,7 @@ from app.core.domain_detection import detect_domain
 from app.core.migration.quick_convert import convert as quick_convert, detect_source, profiles as quick_profiles, safe_filename
 from app.core.workbench import build as build_workbench
 from app.core.platforms import profiles_payload, platform_profile
+from app.core.linting import build_lint_artifact, lint_config, serialize_lint_artifact
 
 router = APIRouter(prefix="/api")
 
@@ -194,6 +195,33 @@ def _versions(project_id):
     path=settings.workspace_dir/project_id/"versions.json"
     if not path.is_file(): return None,None
     data=json.loads(path.read_text(encoding="utf-8")); return VersionContext.model_validate(data["source"]),VersionContext.model_validate(data["target"])
+
+def _lint(project_id):
+    cfg,_=_artifacts(project_id); project=get_project(project_id)
+    if not project: raise HTTPException(404,"Project not found")
+    integrity=ReferenceIntegrityValidator().validate(cfg)
+    root=(settings.workspace_dir/project_id/"migration").resolve(); base=settings.workspace_dir.resolve()
+    if base not in root.parents: raise HTTPException(400,"Invalid workspace path")
+    root.mkdir(exist_ok=True); path=root/"lint-findings.json"
+    artifact=build_lint_artifact(lint_config(cfg,integrity),project_id)
+    path.write_text(serialize_lint_artifact(artifact),encoding="utf-8")
+    return path
+
+@router.post("/projects/{project_id}/lint")
+def generate_lint(project_id:str):
+    return json.loads(_lint(project_id).read_text(encoding="utf-8"))
+
+@router.get("/projects/{project_id}/lint")
+def get_lint(project_id:str):
+    path=settings.workspace_dir/project_id/"migration"/"lint-findings.json"
+    if not path.is_file(): raise HTTPException(404,"Lint findings have not been generated")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+@router.get("/projects/{project_id}/migration/download/lint")
+def download_lint(project_id:str):
+    path=settings.workspace_dir/project_id/"migration"/"lint-findings.json"
+    if not path.is_file(): raise HTTPException(404,"Lint findings have not been generated")
+    return FileResponse(path,media_type="application/json",filename="lint-findings.json")
 
 @router.get("/projects/{project_id}/migration/mappings")
 def migration_mappings(project_id:str): return _migration(project_id)[1]

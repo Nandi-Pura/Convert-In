@@ -17,7 +17,7 @@ Audit date: 2026-09-21
 | Q21 | NOT STARTED | none | Depends on switch and router domain decisions |
 | Q22 | NOT STARTED | none | Existing firewall dependency graph requires cross-domain scope decisions |
 | Q23 | COMPLETE | current Q23 commit | Deterministic `convert-in.migration-plan/v1` review artifact, SHA-256 fingerprint, persistence, and API download |
-| Q24 | NOT STARTED | none | Existing analysis findings require linter rule and severity contract |
+| Q24 | COMPLETE | current Q24 commit | Deterministic normalized-IR linter, CP1 adapters, versioned artifact, API, and compact workbench findings view |
 | Q25 | NOT STARTED | none | Existing semantic comparison requires v2 contract |
 | Q26 | NOT STARTED | none | Existing review package requires evidence-pack manifest contract |
 | Q27 | NOT STARTED | none | Existing SQLite/workspace persistence requires reproducibility contract |
@@ -45,6 +45,8 @@ Audit date: 2026-09-21
 Q16 validation: 263 Python tests passed; 9 browser tests passed; Python compilation, JavaScript syntax, documentation registry, realistic benchmark, and `git diff --check` passed.
 
 Q23 validation: 267 Python tests passed; 3 focused Q23 tests passed; 9 browser tests passed; Python compilation, JavaScript syntax, documentation registry, realistic benchmark, and `git diff --check` passed. Q17 and Q19 remain evidence blocked. Q20 remains not started. Q21 and Q22 remain not started.
+
+Q24 validation: 271 Python tests passed; 4 focused Q24 tests passed; 9 browser tests passed; Python compilation, JavaScript syntax, documentation registry, realistic benchmark, and `git diff --check` passed. Q17 and Q19 remain evidence blocked. No parser, renderer, NAT emission, or pairwise translation semantics changed.
 
 ## Repository
 
