@@ -91,7 +91,7 @@
     "topic": "Configuration API move action used only as provenance for a separate ordering-intent artifact",
     "official_url": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-panorama-api/pan-os-xml-api-request-types/configuration-api",
     "verified_at": "2026-09-16",
-    "notes": "Documents action=move. Does not prove CLI move syntax. Convert-In emits no API request and performs no deployment."
+    "notes": "Documents action=move. Does not prove CLI move syntax. ConfigMorph emits no API request and performs no deployment."
   },
   {
     "id": "PANOS-11.1-CONFIGURE-CLI-HIERARCHY",

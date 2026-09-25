@@ -21,7 +21,7 @@
     "topic": "Object NAT, twice NAT, NAT ordering, static NAT, dynamic PAT, and identity NAT",
     "official_url": "https://www.cisco.com/c/en/us/td/docs/security/asa/asa920/configuration/firewall/asa-920-firewall-config/nat-basics.html",
     "verified_at": "2026-09-16",
-    "notes": "Documented breadth exceeds Convert-In implementation; no breadth expansion."
+    "notes": "Documented breadth exceeds ConfigMorph implementation; no breadth expansion."
   },
   {
     "id": "ASA-9.22-FIREWALL",
