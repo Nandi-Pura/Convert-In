@@ -1,0 +1,15 @@
+{
+  "exclude": [
+    "UI_UX Refactor for ConfigMorph/**",
+    "convert_in.egg-info/**",
+    "frontend/dist/**",
+    "**/node_modules/**"
+  ],
+  "rules": [
+    {
+      "path": "**/*",
+      "rule": "ConfigMorph review priorities. Critical: parser semantic regression; unsafe renderer emission; weakened CP1 blocking; unsafe CP2 emission; adjacent-version evidence inheritance; silent unknown-version mapping; raw configuration or secret logging; unsafe XML handling; source-size limit bypass; project archive traversal; stale results shown as current; candidate copy enabled for REVIEW REQUIRED or BLOCKED. High: stable schema breakage; provenance loss; nondeterminism; project-persistence incompatibility; null backend fields crashing React; virtualization loss; remote runtime dependency. Medium: accessibility regression; excessive DOM rendering; duplicate analysis; inconsistent error handling; stale artifact handling. Preserve local-only runtime, exact-version evidence, CP0/CP1/CP2 semantics, 100 MiB source limit, and evidence source-exclusion defaults. Review only; never auto-fix or auto-commit.",
+      "merge_system_rule": true
+    }
+  ]
+}
