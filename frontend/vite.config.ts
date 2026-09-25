@@ -1,0 +1,2 @@
+import {defineConfig} from 'vite';import react from '@vitejs/plugin-react';import {resolve} from 'node:path';
+export default defineConfig({plugins:[react()],server:{proxy:{'/api':'http://127.0.0.1:8080'}},build:{outDir:resolve(import.meta.dirname,'../app/static/frontend'),emptyOutDir:true,rollupOptions:{output:{entryFileNames:'assets/index.js',assetFileNames:a=>a.name?.endsWith('.css')?'assets/index.css':'assets/[name][extname]'}}}})

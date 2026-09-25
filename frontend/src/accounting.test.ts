@@ -1,0 +1,3 @@
+import{describe,expect,it}from'vitest';import{percentages}from'./accounting';import type{Accounting}from'./types';
+const a=(t:number,c:number,r:number,u:number,o:number):Accounting=>({total_analyzed_lines:t,converted_lines:c,review_lines:r,unsupported_lines:u,unchanged_lines:o,method:'test'});
+describe('line accounting percentages',()=>{it('uses deterministic source totals',()=>expect(percentages(a(100,60,25,10,5))).toEqual([60,25,10,5]));it('handles zero',()=>expect(percentages(a(0,0,0,0,0))).toEqual([0,0,0,0]));it('rounds to 100',()=>expect(percentages(a(3,1,1,1,0)).reduce((x,y)=>x+y)).toBe(100));it('handles large sources',()=>expect(percentages(a(40000,24000,10000,4000,2000))).toEqual([60,25,10,5]))});

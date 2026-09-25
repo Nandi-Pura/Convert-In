@@ -1,0 +1,2 @@
+import type{Accounting}from'./types';
+export function percentages(a:Accounting){const values=[a.converted_lines,a.review_lines,a.unsupported_lines,a.unchanged_lines];if(!a.total_analyzed_lines)return[0,0,0,0];const raw=values.map(v=>v*100/a.total_analyzed_lines),base=raw.map(Math.floor),remaining=100-base.reduce((x,y)=>x+y,0);raw.map((v,i)=>({i,r:v-base[i]})).sort((a,b)=>b.r-a.r||a.i-b.i).slice(0,remaining).forEach(x=>base[x.i]++);return base}

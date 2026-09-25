@@ -1,0 +1,11 @@
+export type Status='READY'|'REVIEW REQUIRED'|'BLOCKED';
+export interface Profile{id:string;vendor:string;source_vendor?:string;platform:string;domain:string;display_name?:string;supported_versions:string[];target_capability:string}
+export interface Entity{id:string;entity_type:string;source_title:string;source_snippet:string;source_lines:number[];target_title?:string;target_snippet:string;user_status:Status;detailed_status:string;copyable:boolean;findings:string[];commands:string[]}
+export interface PropertyDiff{property:string;classification:string;source_value:unknown;target_value:unknown;reason:string;evidence_ids:string[];required_action?:string}
+export interface SemanticEntity{entity_id?:string;source_identity:string;entity_type:string;overall_classification:string;property_diffs:PropertyDiff[]}
+export interface Finding{severity:string;title:string;domain:string;entity_type:string;entity_id?:string;description:string;suggested_action?:string}
+export interface Accounting{total_analyzed_lines:number;converted_lines:number;review_lines:number;unsupported_lines:number;unchanged_lines:number;method:string}
+export interface Result{project_id:string;mode:'CONVERT'|'ANALYZE';renderer_available:boolean;source_profile:Profile&{version:string};target_profile:Profile&{version:string};source_text:string;candidate?:string;candidate_filename?:string;cp0_summary:Record<string,number>;cp1_summary:Record<string,number|unknown[]>;cp2_summary:Record<string,number>;entities:Entity[];lint_findings:Finding[];semantic_diff:{entities:SemanticEntity[];fingerprint?:string};line_accounting:Accounting}
+export interface Stage{name:string;status:string;counts:Record<string,number>;duration_ms?:number}
+export interface Operation{operation_id:string;status:string;stage:string;stages:Stage[];elapsed_ms:number;completed?:boolean;error?:{message:string};result?:Result}
+export interface Manifest{project_id:string;source:{filename:string;size_bytes:number;line_count:number;exact_version:string};target:{exact_version:string};artifacts:Record<string,{status:string}>;fingerprint:string}

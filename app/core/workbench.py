@@ -106,7 +106,8 @@ def _workbench_diff(cfg,cp2,source,target,source_version,target_version,mappings
 
 
 def _row(entity,kind,source,target,status,detail,findings,target_title=None,commands=None):
-    return {"id":entity.id,"entity_type":TYPE_LABELS.get(kind,kind.replace("_"," ").title()),"source_title":entity.name,"source_snippet":source,"target_title":target_title,"target_snippet":target,"user_status":status,"detailed_status":detail,"copyable":status=="READY" and bool(commands),"findings":findings,"semantic_fields":[],"commands":commands or []}
+    line=getattr(getattr(entity,"provenance",None),"source_line",None)
+    return {"id":entity.id,"entity_type":TYPE_LABELS.get(kind,kind.replace("_"," ").title()),"source_title":entity.name,"source_snippet":source,"source_lines":[line] if line else [],"target_title":target_title,"target_snippet":target,"user_status":status,"detailed_status":detail,"copyable":status=="READY" and bool(commands),"findings":findings,"semantic_fields":[],"commands":commands or []}
 
 
 def _result(mode,source,target,source_version,target_version,cp0,cp1,cp2,entities,candidate,lint_findings=None):

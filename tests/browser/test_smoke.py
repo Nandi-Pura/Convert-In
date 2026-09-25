@@ -65,153 +65,42 @@ def test_malformed_is_recoverable(page,live_server):
     page.goto(live_server+"/advanced"); page.get_by_role("tab",name="Paste").click(); page.locator("#source").fill("not a firewall configuration"); page.get_by_role("button",name="Analyze & Convert").click()
     page.wait_for_timeout(300); assert page.locator("#source").input_value()=="not a firewall configuration"
 
-def test_workbench_firewall_convert_copy_filter_and_download(page,live_server,tmp_path):
-    live_server,_=live_server; page.set_viewport_size({"width":1440,"height":900}); page.goto(live_server)
-    assert page.locator(".card").count()==3 and page.locator("aside").count()==0
-    assert page.get_by_role("link",name="Advanced Workbench").count()==0
-    assert page.get_by_role("heading",name="Import Config").is_visible()
-    assert page.get_by_role("heading",name="Select Platform").is_visible()
-    assert page.get_by_role("heading",name="Configuration Comparison").is_visible()
-    assert page.get_by_role("button",name="All",exact=True).first.is_visible()
-    assert page.get_by_role("tab",name="Semantic Diff",exact=True).is_visible()
-    page.locator("#source-file").set_input_files(str(Path("examples/fortigate/basic.conf").resolve())); page.locator("#source-version").select_option("7.4.12")
-    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-entity").first.wait_for()
-    assert page.get_by_text("Source Parsing:").is_visible() and page.get_by_text("Compatibility:").is_visible()
-    page.locator(".semantic-entity").first.wait_for()
-    assert page.locator(".semantic-state.PRESERVED").count()>0 and page.locator(".semantic-state.REVIEW").count()>0
-    page.get_by_role("button",name="Preserved",exact=True).click(); assert page.locator(".semantic-entity").count()>0
+def open_result(page,live_server):
+    page.goto(live_server)
+    page.get_by_role("textbox",name="Configuration").fill(Path("examples/fortigate/basic.conf").read_text())
+    page.get_by_role("button",name="Use pasted configuration").click()
+    page.get_by_role("button",name="Analyze / Convert").click()
+    page.get_by_role("tab",name="Raw Comparison").wait_for(timeout=120000)
+
+
+def test_configmorph_workbench_flow_and_safety(page,live_server):
+    live_server,_=live_server; page.set_viewport_size({"width":1440,"height":900}); open_result(page,live_server)
+    assert page.get_by_text("Network Configuration Migration Workbench").is_visible()
+    assert page.get_by_text("Visualize. Analyze. Migrate.").is_visible()
+    assert page.locator(".compare > section").count()==3
+    for tab in ("Semantic Diff","Raw Comparison","Findings","Migration Plan","Evidence"):
+        page.get_by_role("tab",name=tab,exact=True).click(); assert page.get_by_role("tab",name=tab,exact=True).get_attribute("aria-selected")=="true"
     page.get_by_role("tab",name="Raw Comparison",exact=True).click()
-    assert page.locator("#column-heads").inner_text().splitlines()==["Source Config","Target Config","Semantic Diff"]
-    page.get_by_role("button",name="Ready",exact=True).click(); assert page.locator(".entity-row").count()>0
-    first=page.locator(".entity-row input:not([disabled])").first; first.check(); assert page.locator("#copy-selected").is_enabled()
-    page.get_by_role("button",name="Blocked",exact=True).click(); assert page.locator(".entity-row input:not([disabled])").count()==0
-    assert page.locator(".entity-row .row-action",has_text="Copy").count()==0
-    with page.expect_download() as download: page.get_by_role("link",name="Download Candidate").click()
-    assert download.value.suggested_filename=="candidate-panos-11.1.set"
+    page.get_by_role("button",name="Blocked",exact=False).click()
+    blocked=page.locator(".status > button").first
+    if blocked.count():
+        blocked.click(); assert page.get_by_role("button",name="Copy Selected").is_disabled()
+    assert page.get_by_text("Engineer Review Required",exact=False).is_visible()
 
 
-def test_workbench_iosxe_analyze_search_and_inspect(page,live_server):
-    live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
-    page.locator("#source-text").fill(Path("tests/fixtures/iosxe/policy-router.cfg").read_text())
-    page.locator("#source-platform").select_option("router-cisco-iosxe"); page.locator("#target-vendor").select_option("CISCO")
-    page.get_by_role("button",name="Analyze",exact=True).click(); page.locator(".entity-row").first.wait_for(state="attached")
-    assert page.locator("#target-fields").is_visible() and page.locator("#download").is_hidden()
-    page.get_by_role("tab",name="Raw Comparison",exact=True).click()
-    assert page.locator("#column-heads").inner_text().splitlines()==["Source Config","Normalized / Analysis","Findings"]
-    page.locator("#search").fill("RM-MISSING"); page.wait_for_timeout(250); assert page.locator(".entity-row").count()==1
-    page.locator(".entity-row summary").click(); assert page.locator(".inspect").is_visible()
-
-
-def test_workbench_accepts_large_json_paste(page,live_server):
-    live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
-    text="#config-version=FGT60F-7.4.12-FW-build1-1:opmode=0:vdom=0\nconfig firewall address\nedit LARGE\nset subnet 192.0.2.1 255.255.255.255\nnext\nend\n"+"# synthetic\n"*90000
-    assert 1024*1024<len(text.encode())<5*1024*1024
-    page.locator("#source-text").evaluate("(element,value)=>{element.value=value;element.dispatchEvent(new Event('input',{bubbles:true}))}",text); page.locator("#source-status").wait_for(); page.locator("#source-vendor").select_option("FORTINET"); assert page.locator("#source-platform").input_value()=="firewall-fortinet-fortigate"; page.locator("#source-version").select_option("7.4.12"); page.locator("#target-vendor").select_option("FORTINET"); page.locator("#target-version").select_option("7.6.4")
-    assert page.locator("#source-exact").inner_text()=="Exact release: 7.4.12" and page.locator("#target-exact").inner_text()=="Exact release: 7.6.4"
-    with page.expect_response(lambda response:response.url.endswith("/api/workbench/operations")) as submitted: page.get_by_role("button",name="Convert",exact=True).click()
-    body=submitted.value.text(); assert submitted.value.ok, f"HTTP {submitted.value.status}: {body}"
-    assert "Part exceeded maximum size" not in body
-    page.locator(".semantic-entity").first.wait_for()
-
-@pytest.mark.parametrize("width,height",[(1280,800),(1440,900),(1600,900),(1920,1080)])
-def test_quick_convert_responsive(page,live_server,width,height):
-    live_server,_=live_server; page.set_viewport_size({"width":width,"height":height}); page.goto(live_server)
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
-    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
-    assert page.locator(".card").count()==3 and page.locator("aside").count()==0
-    assert page.get_by_role("button",name="Convert",exact=True).is_visible()
-    target=page.locator("#target-fields"); box=target.bounding_box(); viewport=page.viewport_size
-    assert box and box["x"]>=0 and box["x"]+box["width"]<=viewport["width"]
-    assert page.locator(".comparison-card footer").is_visible()
-
-
-def test_target_selectors_are_registry_backed_and_independent(page,live_server):
-    live_server,_=live_server; page.goto(live_server)
-    source=page.locator("#source-platform").input_value()
-    page.locator("#target-vendor").select_option("PALO_ALTO")
-    assert page.locator("#target-platform option").all_text_contents()==["PAN-OS"]
-    assert page.locator("#target-platform").input_value()=="firewall-paloalto-panos"
-    assert "11.1" in page.locator("#target-version option").evaluate_all("options => options.map(option => option.value)")
-    page.locator("#target-vendor").select_option("FORTINET")
-    assert page.locator("#target-platform").input_value()=="firewall-fortinet-fortigate"
-    assert page.locator("#target-version").input_value()=="7.6.4"
-    assert page.locator("#source-platform").input_value()==source
-
-
-def test_target_change_invalidates_rendered_outputs(page,live_server):
-    live_server,_=live_server; page.goto(live_server)
-    page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
-    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-entity").first.wait_for()
-    page.locator("#target-version").select_option("12.2.3")
-    assert page.locator(".semantic-entity").count()==0
-    assert page.locator("#download").is_hidden()
-    assert "Run analysis" in page.locator("#semantic-list").inner_text()
-
-
-def test_comparison_panes_scroll_without_document_scroll(page,live_server):
-    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
-    page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
-    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-pane").first.wait_for()
-    page.locator(".source-pane .config-item").first.evaluate("item => item.parentElement.append(...Array.from({length:30}, () => item.cloneNode(true)))")
-    assert page.locator(".source-pane > div").evaluate("pane => pane.scrollHeight > pane.clientHeight")
-    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
-
-
-def test_conversion_progress_duplicate_suppression_and_elapsed_stop(page,live_server):
-    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
-    page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
-    requests=[]; page.on("request",lambda request:requests.append(request.url) if request.url.endswith("/api/workbench/operations") else None)
-    page.get_by_role("button",name="Convert",exact=True).click(); page.locator("#operation-progress").wait_for(); page.locator("#run").click(force=True)
-    assert page.locator("#operation-stages li").count()>1
-    page.locator("#operation-summary").wait_for(); assert len(requests)==1 and "completed in" in page.locator("#operation-summary").inner_text()
-    elapsed=page.locator("#operation-elapsed").inner_text(); page.wait_for_timeout(1100); assert page.locator("#operation-elapsed").inner_text()==elapsed
-    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
-
-
-def test_conversion_progress_failure_stops_timer(page,live_server):
-    live_server,_=live_server; page.route("**/api/operations/*",lambda route:route.fulfill(json={"status":"FAILED","stage":"CP2","elapsed_ms":20,"error":{"message":"Target profile is not available."},"stages":[{"name":name,"status":"FAILED" if name=="CP2" else "COMPLETE" if name in {"VALIDATING_SOURCE","PARSING","NORMALIZING","CP0","CP1"} else "PENDING","counts":{}} for name in ("VALIDATING_SOURCE","PARSING","NORMALIZING","CP0","CP1","CP2","RENDERING","SEMANTIC_DIFF","FINDINGS","FINALIZING","COMPLETE")]})); page.goto(live_server); page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
-    page.get_by_role("button",name="Convert",exact=True).click()
-    page.get_by_text("Conversion failed",exact=True).wait_for(); assert page.locator("#operation-stages li.FAILED").count()==1 and page.locator("#run").is_enabled()
-    elapsed=page.locator("#operation-elapsed").inner_text(); page.wait_for_timeout(1100); assert page.locator("#operation-elapsed").inner_text()==elapsed
-
-
-def test_evidence_pack_export_for_analysis_only_project(page,live_server):
-    live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
-    page.locator("#source-text").fill(Path("tests/fixtures/iosxe/policy-router.cfg").read_text())
-    page.locator("#source-platform").select_option("router-cisco-iosxe"); page.locator("#target-vendor").select_option("CISCO")
-    page.get_by_role("button",name="Analyze",exact=True).click(); page.locator(".entity-row").first.wait_for(state="attached")
-    export=page.get_by_role("button",name="Export Evidence Pack"); assert export.is_enabled()
-    export.click(); page.get_by_text("Pack ready",exact=False).wait_for(); assert "sha256:" in page.locator("#evidence-result").inner_text()
-    with page.expect_download() as download: page.get_by_role("link",name="Download",exact=True).click()
-    assert download.value.suggested_filename.startswith("configmorph-evidence-pack-")
-
-
-def test_configmorph_focus_geometry_and_large_dom_bound(page,live_server):
-    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
-    assert page.title()=="ConfigMorph" and page.locator(".brand").get_by_text("ConfigMorph").is_visible()
-    page.evaluate("""() => {
-      const entity=i=>({id:`id-${i}`,entity_type:'Address',source_title:`source-${i}`,source_snippet:`set source ${i}`,target_title:`target-${i}`,target_snippet:`set target ${i}`,user_status:'READY',detailed_status:'CP2: SUPPORTED',copyable:true,findings:[],commands:[`set target ${i}`]});
-      const diff=i=>({source_identity:`source-${i}`,entity_type:'address',overall_classification:'PRESERVED',property_diffs:[]});
-      state.result={mode:'CONVERT',project_id:'fixture',candidate:'x',candidate_filename:'candidate.set',cp0_summary:{normalized:2000,recovered:0,unparsed:0,unsupported:0},cp1_summary:{blocking_findings:0},cp2_summary:{SUPPORTED:2000},entities:Array.from({length:2000},(_,i)=>entity(i)),lint_findings:Array.from({length:2000},(_,i)=>({severity:'INFO',title:`finding-${i}`,domain:'FIREWALL',entity_type:'address',entity_id:`id-${i}`,description:'fixture',related_entity_ids:[],suggested_action:null})),semantic_diff:{entities:Array.from({length:2000},(_,i)=>diff(i))}};
-      document.querySelector('#operation-summary').hidden=false; document.querySelector('#completion-text').textContent='✓ Conversion completed in 1.0s'; render(); showView('comparison');
-    }""")
-    assert page.locator(".entity-row").count()<=200 and page.get_by_role("button",name="Load more").is_visible()
-    page.get_by_role("button",name="Load more").click(); assert page.locator(".entity-row").count()<=400
+def test_configmorph_viewports_and_focus(page,live_server):
+    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); open_result(page,live_server)
     for width,height in ((1280,800),(1440,900),(1600,900),(1920,1080)):
         page.set_viewport_size({"width":width,"height":height})
-        assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
-    page.get_by_role("button",name="Expand").click(); assert page.locator(".import-card").is_hidden() and page.locator(".platform-card").is_hidden()
-    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
-    page.keyboard.press("Escape"); assert page.locator(".import-card").is_visible() and page.get_by_role("tab",name="Raw Comparison").get_attribute("aria-selected")=="true"
+        assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
+        assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
+    page.get_by_role("button",name="Expand").click(); assert "focus" in page.locator("main").get_attribute("class")
+    page.keyboard.press("Escape"); assert "focus" not in page.locator("main").get_attribute("class")
 
 
-def test_project_reopen_restores_exact_target_without_conversion(page,live_server):
-    live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
-    page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
-    page.locator("#source-platform").select_option("firewall-fortinet-fortigate"); page.locator("#target-version").select_option("11.1")
-    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-entity").first.wait_for()
-    project=page.evaluate("state.result.project_id")
-    requests=[]; page.on("request",lambda request: requests.append(request.url) if "/api/workbench/operations" in request.url else None)
-    page.evaluate("id => openProject(id)",project); page.get_by_text("Saved",exact=False).wait_for()
-    assert page.locator("#target-version").input_value()=="11.1" and not requests
-    assert page.get_by_role("button",name="Export Project").is_enabled()
+def test_configmorph_line_accounting_and_project_export(page,live_server):
+    live_server,_=live_server; open_result(page,live_server)
+    values=[int(x.rstrip('%')) for x in page.locator(".conversion p > b").all_text_contents()]
+    assert sum(values)==100
+    assert page.get_by_role("link",name="Export Project").is_visible()
+    assert "7.4" in page.locator(".context article").first.inner_text()

@@ -31,6 +31,8 @@ playwright-report/
 test-results/
 dist/
 build/
+node_modules/
+frontend/dist/
 
 .vscode/
 .idea/

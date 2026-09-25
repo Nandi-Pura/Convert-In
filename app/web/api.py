@@ -92,6 +92,8 @@ def run_workbench_instrumented(source:WorkbenchSource,progress):
     if not selected:raise ValueError("Source version was not verified. Select it explicitly.")
     target_profile=source.target_profile or ("router-huawei-vrp" if vendor==Vendor.CISCO_IOSXE else "firewall-paloalto-panos"); target_version=source.target_version if source.target_profile else ("" if vendor==Vendor.CISCO_IOSXE else source.target_version)
     result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings,progress)
+    result["source_text"]=config
+    result["line_accounting"]=_line_accounting(config,result["entities"])
     for stage,counts in (("CP1",{"findings":result["cp1_summary"].get("blocking_findings",0)}),("CP2",result.get("cp2_summary") or {}),("RENDERING",{"commands":sum(len(x["commands"]) for x in result["entities"])}),("SEMANTIC_DIFF",{}),("FINDINGS",{"findings":len(result["lint_findings"])})):
         if stage=="RENDERING" and not result["renderer_available"]:continue
         progress(stage); progress(stage,"COMPLETE",counts)
@@ -100,6 +102,15 @@ def run_workbench_instrumented(source:WorkbenchSource,progress):
     (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
     if result.get("candidate"): migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
     create_manifest(root,project,context); result["project_id"]=project; return result
+
+def _line_accounting(source_text:str,entities:list[dict]):
+    total=len(source_text.splitlines()); ranked={"UNCHANGED_OR_OTHER":0,"CONVERTED":1,"REVIEW_REQUIRED":2,"NOT_SUPPORTED":3}; lines={}
+    for entity in entities:
+        status="CONVERTED" if entity["user_status"]=="READY" else "NOT_SUPPORTED" if entity["user_status"]=="BLOCKED" else "REVIEW_REQUIRED"
+        for line in entity.get("source_lines",[]):
+            if 1<=line<=total and ranked[status]>ranked.get(lines.get(line,"UNCHANGED_OR_OTHER"),0): lines[line]=status
+    counts=Counter(lines.values()); counts["UNCHANGED_OR_OTHER"]=total-len(lines)
+    return {"total_analyzed_lines":total,"converted_lines":counts["CONVERTED"],"review_lines":counts["REVIEW_REQUIRED"],"unsupported_lines":counts["NOT_SUPPORTED"],"unchanged_lines":counts["UNCHANGED_OR_OTHER"],"method":"UNIQUE_PROVENANCE_ANCHORS_V1"}
 
 @router.post("/workbench/operations",status_code=202)
 def start_workbench_operation(source:WorkbenchSource):
