@@ -10,7 +10,7 @@ Severities:
 
 - `INFO`: modeled condition worth recording.
 - `WARNING`: deterministic advisory requiring engineer review.
-- `BLOCKING`: deterministic Convert-In integrity problem. It does not claim production failure.
+- `BLOCKING`: deterministic ConfigMorph integrity problem. It does not claim production failure.
 
 CP1 remains authoritative for conversion blocking. The linter adapts CP1 findings for presentation without changing CP0, CP1, or CP2 state.
 

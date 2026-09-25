@@ -21,7 +21,7 @@ def project(tmp_path,domain="FIREWALL",candidate=False):
 def test_deterministic_private_analysis_only_pack(tmp_path):
     root=project(tmp_path); first,_=build("p",tmp_path); before={p.relative_to(root).as_posix():p.read_bytes() for p in root.rglob("*") if p.is_file() and "evidence-pack" not in p.parts and p.suffix!=".zip"}; files1={p.relative_to(root/"migration"/"evidence-pack").as_posix():p.read_bytes() for p in (root/"migration"/"evidence-pack").rglob("*") if p.is_file()}
     second,_=build("p",tmp_path); files2={p.relative_to(root/"migration"/"evidence-pack").as_posix():p.read_bytes() for p in (root/"migration"/"evidence-pack").rglob("*") if p.is_file()}
-    unsigned={k:v for k,v in first.items() if k!="fingerprint"}; assert first==second and files1==files2 and first["fingerprint"]=="sha256:"+hashlib.sha256(canonical(unsigned)).hexdigest()
+    unsigned={k:v for k,v in first.items() if k!="fingerprint"}; assert first==second and files1==files2 and first["application"]["name"]=="ConfigMorph" and first["fingerprint"]=="sha256:"+hashlib.sha256(canonical(unsigned)).hexdigest()
     assert not (root/"migration"/"evidence-pack"/"source.cfg").exists() and json.loads((root/"migration"/"evidence-pack"/"source"/"source-metadata.json").read_text())["sha256"]==hashlib.sha256((root/"source.cfg").read_bytes()).hexdigest()
     assert next(x for x in first["artifacts"] if x["name"]=="candidate")["status"]=="NOT_GENERATED" and before=={p.relative_to(root).as_posix():p.read_bytes() for p in root.rglob("*") if p.is_file() and "evidence-pack" not in p.parts and p.suffix!=".zip"}
     lines=(root/"migration"/"evidence-pack"/"checksums.sha256").read_text().splitlines(); assert lines==sorted(lines,key=lambda x:x.split("  ",1)[1])
@@ -46,4 +46,9 @@ def test_api_post_get_download_and_safe_filename(tmp_path,monkeypatch):
     from app.config import settings
     monkeypatch.setattr(settings,"workspace_dir",tmp_path); project(tmp_path); client=TestClient(app); base="/api/projects/p/migration"
     assert client.post(base+"/evidence-pack").status_code==200 and client.get(base+"/evidence-pack").status_code==200
-    response=client.get(base+"/download/evidence-pack"); assert response.status_code==200 and response.headers["content-disposition"]=='attachment; filename="convert-in-evidence-pack-p.zip"'
+    response=client.get(base+"/download/evidence-pack"); assert response.status_code==200 and response.headers["content-disposition"]=='attachment; filename="configmorph-evidence-pack-p.zip"'
+
+def test_historical_pack_schema_and_fingerprint_remain_valid():
+    historical={"schema":"convert-in.evidence-pack/v1","application":{"name":"Convert-In","version":"0.2.0a1"}}
+    historical["fingerprint"]="sha256:"+hashlib.sha256(canonical(historical)).hexdigest()
+    assert historical["schema"]=="convert-in.evidence-pack/v1" and historical["fingerprint"]=="sha256:"+hashlib.sha256(canonical({k:v for k,v in historical.items() if k!="fingerprint"})).hexdigest()

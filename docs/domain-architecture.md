@@ -2,7 +2,7 @@
 
 Source and target profiles are independent within one domain. Source lookup chooses a parser. Target lookup chooses a renderer by domain, vendor, platform, and version. See [Cross-vendor architecture](cross-vendor-architecture.md).
 
-Convert-In separates `FirewallConfig`, `RouterConfig`, and `SwitchConfig`. Vendor syntax enters a domain parser, then CP0 extraction accounting, CP1 reference validation, domain-specific CP2 compatibility, and an optional target renderer. No pairwise translators exist.
+ConfigMorph separates `FirewallConfig`, `RouterConfig`, and `SwitchConfig`. Vendor syntax enters a domain parser, then CP0 extraction accounting, CP1 reference validation, domain-specific CP2 compatibility, and an optional target renderer. No pairwise translators exist.
 
 `RouterConfig` provides bounded structured models for interfaces, VRFs, static routes, prefix lists, route policies, OSPF, and BGP. Cisco IOS-XE 17.12.1 is the first router parser, with router-specific CP0 and CP1 analysis. `SwitchConfig` remains an IR foundation for VLANs, ports, LAGs, SVIs, STP metadata, and ACL references. No router/switch renderer or Quick Convert path is claimed.
 

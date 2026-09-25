@@ -1,4 +1,4 @@
-# Contributing to Convert-In
+# Contributing to ConfigMorph
 
 ## Setup
 

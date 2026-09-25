@@ -45,7 +45,7 @@ def export_package(candidate,report,review,validation,mappings,ordering_plan=Non
     source=review.source_version; target=review.target_version
     readme=f"""CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED
 
-Convert-In: {__version__}
+ConfigMorph: {__version__}
 Target profile: {target.vendor.value if target else 'not selected'} {target.selected_version if target else 'not selected'} / {mappings.management_mode.value}
 Source: {review.source_vendor} detected={source.detected_version if source else 'unknown'} selected={source.selected_version if source else 'not selected'} override={source.override if source else False}
 

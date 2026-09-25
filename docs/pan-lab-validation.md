@@ -4,9 +4,9 @@ Optional validation targets an isolated `LOCAL_FIREWALL` running PAN-OS 11.1. It
 
 ## Evidence result
 
-PAN-OS defines the candidate configuration as the running configuration plus inactive changes made after the last commit. A named candidate snapshot therefore differs from `running-config.xml`: it preserves pre-existing uncommitted work. Saving that snapshot does not activate changes. Activation requires a separate commit, which Convert-In forbids.
+PAN-OS defines the candidate configuration as the running configuration plus inactive changes made after the last commit. A named candidate snapshot therefore differs from `running-config.xml`: it preserves pre-existing uncommitted work. Saving that snapshot does not activate changes. Activation requires a separate commit, which ConfigMorph forbids.
 
-PAN-OS also documents loading a custom-named candidate snapshot. Revert operations replace settings in the current candidate configuration. Loading the saved pre-validation snapshot restores candidate state; it does not change running configuration unless an optional commit follows. Convert-In never issues that commit. `Revert to running configuration` is not an acceptable cleanup path because it discards changes made since the last commit.
+PAN-OS also documents loading a custom-named candidate snapshot. Revert operations replace settings in the current candidate configuration. Loading the saved pre-validation snapshot restores candidate state; it does not change running configuration unless an optional commit follows. ConfigMorph never issues that commit. `Revert to running configuration` is not an acceptable cleanup path because it discards changes made since the last commit.
 
 The PAN-OS 11.1 XML API operational-command reference supplies these request bodies:
 
@@ -14,14 +14,14 @@ The PAN-OS 11.1 XML API operational-command reference supplies these request bod
 - Save configuration: `<save><config><to>filename</to></config></save>`
 - Load configuration: `<load><config><from>filename</from></config></load>`
 
-The Configuration API separately documents `action=set` as candidate mutation and `action=get` as candidate retrieval. It does not publish the capability-specific local-firewall XPath and XML element payloads needed to convert `PanSetCommand`. Palo Alto instead documents discovery through the API Browser or `debug cli on` on an actual firewall. Convert-In does not infer those trees or send CLI strings to the XML API.
+The Configuration API separately documents `action=set` as candidate mutation and `action=get` as candidate retrieval. It does not publish the capability-specific local-firewall XPath and XML element payloads needed to convert `PanSetCommand`. Palo Alto instead documents discovery through the API Browser or `debug cli on` on an actual firewall. ConfigMorph does not infer those trees or send CLI strings to the XML API.
 
 ## Lifecycle contract
 
 1. Read the device version. Stop before mutation unless it belongs to PAN-OS 11.1.
 2. Retrieve the complete candidate configuration. This includes running state and all pre-existing uncommitted changes.
 3. Save it to a generated named snapshot and verify snapshot creation.
-4. Apply only provenance-checked Convert-In candidate mutations.
+4. Apply only provenance-checked ConfigMorph candidate mutations.
 5. Run full validation and collect sanitized findings.
 6. In unconditional cleanup, load the named pre-validation snapshot.
 7. Retrieve candidate configuration again. Compare its canonical transport representation with the pre-validation representation.

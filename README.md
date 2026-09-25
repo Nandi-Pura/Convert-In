@@ -1,6 +1,10 @@
-# Convert-In
+# ConfigMorph
 
-Convert-In supports cross-vendor and cross-version firewall migration through exact-version, evidence-gated profiles. It runs locally and also supports bounded router analysis and migration.
+**Visualize. Analyze. Migrate.**
+
+ConfigMorph was formerly Convert-In. Existing `convert-in.*` schema identifiers are retained for backward compatibility.
+
+ConfigMorph supports cross-vendor and cross-version firewall migration through exact-version, evidence-gated profiles. It runs locally and also supports bounded router analysis and migration.
 
 ## Unified workbench
 
@@ -37,7 +41,7 @@ Current capabilities:
 
 Four core firewall renderer implementations are available. Exact releases use independent evidence gates. A release note proves release existence, not renderer syntax. “Latest verified” means the latest known exact release in the audited release line from bundled metadata, not automatically tracked firmware.
 
-> **Generated configurations require engineer review.** Convert-In does not validate against a device or deploy configurations.
+> **Generated configurations require engineer review.** ConfigMorph does not validate against a device or deploy configurations.
 
 ## Local-first by design
 
@@ -67,7 +71,7 @@ Synthetic screenshots: [firewall conversion](docs/images/workbench-firewall.png)
 | Review / non-generated | NAT, ambiguous target context, interface/zone mapping, advanced semantics, unverified versions | Inline comments |
 | Blocked | PAN-OS 12.1, Panorama, live deployment | Not supported by Quick Convert |
 
-Coverage is intentionally bounded by tests. Convert-In does **not** claim full vendor conversion.
+Coverage is intentionally bounded by tests. ConfigMorph does **not** claim full vendor conversion.
 
 ## Run locally
 

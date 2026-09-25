@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Convert-In is Apache-2.0 licensed. Dependencies retain their own licenses.
+ConfigMorph is Apache-2.0 licensed. Dependencies retain their own licenses.
 
 ## Development tools
 

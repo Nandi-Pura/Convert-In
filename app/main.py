@@ -7,7 +7,7 @@ from app.config import settings
 from app.web import api, routes
 
 settings.workspace_dir.mkdir(parents=True, exist_ok=True)
-app = FastAPI(title="Convert-In", version=__version__, docs_url=None, redoc_url=None)
+app = FastAPI(title="ConfigMorph", version=__version__, docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(routes.router); app.include_router(api.router)
 

@@ -23,7 +23,7 @@ Audit date: 2026-09-21
 | Q27 | COMPLETE | current Q27 commit | Canonical project manifest, exact-profile reopen, revision invalidation, safe export/import, validation, API, and compact controls |
 | Q28 | NOT STARTED | none | Plugin trust, discovery, compatibility, and isolation contract not specified |
 | Q29 | NOT STARTED | none | Depends on Q28 and a selected next vendor |
-| Q30 | NOT STARTED | none | Depends on unresolved release gates |
+| Q30 | NOT STARTED | none | Future CLI: `configmorph`, `configmorph --help`, `configmorph --version`, `configmorph doctor`; no CLI exists yet |
 
 ## Validation
 

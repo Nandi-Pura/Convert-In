@@ -98,7 +98,7 @@ def test_workbench_iosxe_analyze_search_and_inspect(page,live_server):
     assert page.locator("#target-fields").is_visible() and page.locator("#download").is_hidden()
     page.get_by_role("tab",name="Raw Comparison",exact=True).click()
     assert page.locator("#column-heads").inner_text().splitlines()==["Source Config","Normalized / Analysis","Findings"]
-    page.locator("#search").fill("RM-MISSING"); assert page.locator(".entity-row").count()==1
+    page.locator("#search").fill("RM-MISSING"); page.wait_for_timeout(250); assert page.locator(".entity-row").count()==1
     page.locator(".entity-row summary").click(); assert page.locator(".inspect").is_visible()
 
 
@@ -183,7 +183,26 @@ def test_evidence_pack_export_for_analysis_only_project(page,live_server):
     export=page.get_by_role("button",name="Export Evidence Pack"); assert export.is_enabled()
     export.click(); page.get_by_text("Pack ready",exact=False).wait_for(); assert "sha256:" in page.locator("#evidence-result").inner_text()
     with page.expect_download() as download: page.get_by_role("link",name="Download",exact=True).click()
-    assert download.value.suggested_filename.startswith("convert-in-evidence-pack-")
+    assert download.value.suggested_filename.startswith("configmorph-evidence-pack-")
+
+
+def test_configmorph_focus_geometry_and_large_dom_bound(page,live_server):
+    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
+    assert page.title()=="ConfigMorph" and page.locator(".brand").get_by_text("ConfigMorph").is_visible()
+    page.evaluate("""() => {
+      const entity=i=>({id:`id-${i}`,entity_type:'Address',source_title:`source-${i}`,source_snippet:`set source ${i}`,target_title:`target-${i}`,target_snippet:`set target ${i}`,user_status:'READY',detailed_status:'CP2: SUPPORTED',copyable:true,findings:[],commands:[`set target ${i}`]});
+      const diff=i=>({source_identity:`source-${i}`,entity_type:'address',overall_classification:'PRESERVED',property_diffs:[]});
+      state.result={mode:'CONVERT',project_id:'fixture',candidate:'x',candidate_filename:'candidate.set',cp0_summary:{normalized:2000,recovered:0,unparsed:0,unsupported:0},cp1_summary:{blocking_findings:0},cp2_summary:{SUPPORTED:2000},entities:Array.from({length:2000},(_,i)=>entity(i)),lint_findings:Array.from({length:2000},(_,i)=>({severity:'INFO',title:`finding-${i}`,domain:'FIREWALL',entity_type:'address',entity_id:`id-${i}`,description:'fixture',related_entity_ids:[],suggested_action:null})),semantic_diff:{entities:Array.from({length:2000},(_,i)=>diff(i))}};
+      document.querySelector('#operation-summary').hidden=false; document.querySelector('#completion-text').textContent='✓ Conversion completed in 1.0s'; render(); showView('comparison');
+    }""")
+    assert page.locator(".entity-row").count()<=200 and page.get_by_role("button",name="Load more").is_visible()
+    page.get_by_role("button",name="Load more").click(); assert page.locator(".entity-row").count()<=400
+    for width,height in ((1280,800),(1440,900),(1600,900),(1920,1080)):
+        page.set_viewport_size({"width":width,"height":height})
+        assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
+    page.get_by_role("button",name="Expand").click(); assert page.locator(".import-card").is_hidden() and page.locator(".platform-card").is_hidden()
+    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
+    page.keyboard.press("Escape"); assert page.locator(".import-card").is_visible() and page.get_by_role("tab",name="Raw Comparison").get_attribute("aria-selected")=="true"
 
 
 def test_project_reopen_restores_exact_target_without_conversion(page,live_server):

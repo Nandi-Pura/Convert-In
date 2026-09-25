@@ -130,8 +130,8 @@ def get_evidence_pack(project_id:str):
 
 @router.get("/projects/{project_id}/migration/download/evidence-pack")
 def download_evidence_pack(project_id:str):
-    _,archive=build_evidence_pack(project_id,settings.workspace_dir) if not (settings.workspace_dir/project_id/"migration"/f"convert-in-evidence-pack-{project_id}.zip").is_file() else (None,settings.workspace_dir/project_id/"migration"/f"convert-in-evidence-pack-{project_id}.zip")
-    return FileResponse(archive,media_type="application/zip",filename=f"convert-in-evidence-pack-{project_id}.zip")
+    _,archive=build_evidence_pack(project_id,settings.workspace_dir) if not (settings.workspace_dir/project_id/"migration"/f"configmorph-evidence-pack-{project_id}.zip").is_file() else (None,settings.workspace_dir/project_id/"migration"/f"configmorph-evidence-pack-{project_id}.zip")
+    return FileResponse(archive,media_type="application/zip",filename=f"configmorph-evidence-pack-{project_id}.zip")
 
 @router.get("/projects/{project_id}")
 def project_state(project_id:str):
@@ -151,7 +151,7 @@ def validate_project(project_id:str):
 def project_export(project_id:str):
     try: path=export_project(settings.workspace_dir,project_id)
     except FileNotFoundError as exc: raise HTTPException(404,str(exc)) from exc
-    return FileResponse(path,media_type="application/zip",filename=path.name,headers={"X-Convert-In-Sensitive":"source-configuration-included"})
+    return FileResponse(path,media_type="application/zip",filename=path.name,headers={"X-ConfigMorph-Sensitive":"source-configuration-included"})
 
 @router.post("/projects/import")
 async def project_import(project:UploadFile=File(...)):

@@ -10,7 +10,7 @@ For UI, copy, people, mobile layout, or code comments work, load the antislop sk
 Before starting, ask the user when antislop applies: during the work, or after it is done.
 <!-- antislop:end -->
 
-## Convert-In direction
+## ConfigMorph direction
 
 For UI, copy, responsive layout, and code-comment work, apply the relevant antislop skill together with `DESIGN.md`.
 

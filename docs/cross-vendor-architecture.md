@@ -1,6 +1,6 @@
 # Cross-vendor architecture
 
-Convert-In selects source parsers and target renderers independently within one configuration domain.
+ConfigMorph selects source parsers and target renderers independently within one configuration domain.
 
 ```text
 Source Parsers

@@ -86,17 +86,17 @@ def build(project_id:str,workspace:Path):
         candidate=inventory[-1]
         semantic=result.get("semantic_diff",{}).get("summary",{})
         summary={"cp0":_counts(result,"cp0_summary",("normalized","recovered","unparsed","unsupported")),"cp1":_counts(result,"cp1_summary",("pass","warning","blocked")),"cp2":_counts(result,"cp2_summary",("exact","supported","partial","manual_review","unsupported","version_not_verified")),"semantic_diff":{k:int(semantic.get(k.upper(),semantic.get(k,0)) or 0) for k in ("preserved","changed","lost","review")},"lint":_counts(result,"lint_findings",("blocking","warning","info")),"candidate_generated":candidate["status"]=="PRESENT","migration_plan_present":any(x["name"]=="migration_plan" and x["status"]=="PRESENT" for x in inventory),"migration_report_present":any(x["name"]=="migration_report" and x["status"]=="PRESENT" for x in inventory)}
-        manifest={"schema":SCHEMA,"project_id":project_id,"application":{"name":"Convert-In","version":__version__},"source":{**context["source"],"sha256":source_meta["sha256"]},"target":context["target"],"artifacts":inventory,"summary":summary}
+        manifest={"schema":SCHEMA,"project_id":project_id,"application":{"name":"ConfigMorph","version":__version__},"source":{**context["source"],"sha256":source_meta["sha256"]},"target":context["target"],"artifacts":inventory,"summary":summary}
         manifest["fingerprint"]="sha256:"+hashlib.sha256(canonical(manifest)).hexdigest()
         (temporary/"manifest.json").write_bytes(canonical(manifest)+b"\n")
-        readme=f"Convert-In Migration Evidence Pack\n\nSource: {context['source']['vendor']} {context['source']['platform']} {context['source']['exact_version']}\nTarget: {context['target']['vendor']} {context['target']['platform']} {context['target']['exact_version']}\n\nRaw source configuration is intentionally excluded. Candidate files, when present, require engineer review. No device deployment occurred. REVIEW, UNSUPPORTED, and VERSION_NOT_VERIFIED preserve unresolved states. Validate with: sha256sum -c checksums.sha256\n"
+        readme=f"ConfigMorph Migration Evidence Pack\n\nSource: {context['source']['vendor']} {context['source']['platform']} {context['source']['exact_version']}\nTarget: {context['target']['vendor']} {context['target']['platform']} {context['target']['exact_version']}\n\nRaw source configuration is intentionally excluded. Candidate files, when present, require engineer review. No device deployment occurred. REVIEW, UNSUPPORTED, and VERSION_NOT_VERIFIED preserve unresolved states. Validate with: sha256sum -c checksums.sha256\n"
         (temporary/"docs").mkdir(); (temporary/"docs"/"README.txt").write_text(readme,encoding="utf-8",newline="\n")
         files=sorted((p for p in temporary.rglob("*") if p.is_file()),key=lambda p:p.relative_to(temporary).as_posix())
         checks="".join(f"{digest(p)}  {p.relative_to(temporary).as_posix()}\n" for p in files)
         (temporary/"checksums.sha256").write_text(checks,encoding="ascii",newline="\n")
         if final.exists(): shutil.rmtree(final)
         os.replace(temporary,final)
-        archive=root/"migration"/f"convert-in-evidence-pack-{project_id}.zip"; archive_tmp=archive.with_suffix(".tmp")
+        archive=root/"migration"/f"configmorph-evidence-pack-{project_id}.zip"; archive_tmp=archive.with_suffix(".tmp")
         with zipfile.ZipFile(archive_tmp,"w",zipfile.ZIP_DEFLATED,compresslevel=9) as bundle:
             for path in sorted((p for p in final.rglob("*") if p.is_file()),key=lambda p:p.relative_to(final).as_posix()):
                 info=zipfile.ZipInfo(path.relative_to(final).as_posix(),(1980,1,1,0,0,0)); info.compress_type=zipfile.ZIP_DEFLATED; info.external_attr=0o100644<<16

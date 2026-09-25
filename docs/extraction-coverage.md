@@ -1,6 +1,6 @@
 # Source Extraction Coverage (CP0)
 
-CP0 answers: “How much of the source configuration did Convert-In recognize, parse, normalize, and account for?” It is deterministic parser accounting. It is not accuracy, confidence, compatibility, migration success, or device validation.
+CP0 answers: “How much of the source configuration did ConfigMorph recognize, parse, normalize, and account for?” It is deterministic parser accounting. It is not accuracy, confidence, compatibility, migration success, or device validation.
 
 ## Accounting
 

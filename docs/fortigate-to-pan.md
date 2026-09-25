@@ -1,6 +1,6 @@
 # FortiGate to PAN-OS migration
 
-Convert-In parses FortiOS configuration into the normalized `FirewallConfig` IR, applies a FortiGate source adapter, then uses the shared migration planner, PAN-OS renderer, semantic review, and validation workflow. Output is a candidate configuration. Engineer review remains mandatory.
+ConfigMorph parses FortiOS configuration into the normalized `FirewallConfig` IR, applies a FortiGate source adapter, then uses the shared migration planner, PAN-OS renderer, semantic review, and validation workflow. Output is a candidate configuration. Engineer review remains mandatory.
 
 ## Supported candidate semantics
 
@@ -24,4 +24,4 @@ FortiOS 7.4/7.6 source semantics remain separate from PAN-OS target evidence. PA
 - Multiple VDOM flattening, FortiGate SD-WAN, policy routes, ECMP-specific behavior, and dynamic routing.
 - Source-port restrictions, ICMP, SCTP, protocol-number, helper, and session-TTL service behavior.
 
-Multiple VDOMs are not mapped automatically to one PAN vsys. SD-WAN members, health checks, and service rules are not used to infer routes. Review every compatibility record, mapping, normalized warning, generated command, and review-package validation result in an isolated PAN-OS lab before any separate deployment process. Convert-In has no device connection or deployment feature.
+Multiple VDOMs are not mapped automatically to one PAN vsys. SD-WAN members, health checks, and service rules are not used to infer routes. Review every compatibility record, mapping, normalized warning, generated command, and review-package validation result in an isolated PAN-OS lab before any separate deployment process. ConfigMorph has no device connection or deployment feature.

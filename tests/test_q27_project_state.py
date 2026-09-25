@@ -33,9 +33,9 @@ def test_legacy_migration_backup_and_future_rejection(tmp_path):
     with pytest.raises(ValueError,match="PROJECT_SCHEMA_NEWER"): load_manifest(tmp_path,"p")
 
 def test_export_import_source_collision_and_sha(tmp_path):
-    root,_=fixture(tmp_path); archive=export_project(tmp_path,"p")
+    root,_=fixture(tmp_path); archive=export_project(tmp_path,"p"); assert archive.name=="p.configmorph.zip"
     with zipfile.ZipFile(archive) as bundle: assert "source.cfg" in bundle.namelist()
-    imported=import_project(tmp_path,archive); assert imported["project_id"]!="p" and imported["origin_project_id"]=="p"
+    legacy=archive.with_name("p.convertin.zip"); legacy.write_bytes(archive.read_bytes()); imported=import_project(tmp_path,legacy); assert imported["project_id"]!="p" and imported["origin_project_id"]=="p"
     bad=tmp_path/"bad.zip"
     with zipfile.ZipFile(bad,"w") as bundle: bundle.writestr("../escape","x"); bundle.writestr("export.json","{}")
     with pytest.raises(ValueError,match="Unsafe"): import_project(tmp_path,bad)

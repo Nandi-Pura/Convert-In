@@ -23,7 +23,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Convert-In version
+      label: ConfigMorph version
     validations:
       required: true
   - type: dropdown

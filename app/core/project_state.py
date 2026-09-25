@@ -109,7 +109,7 @@ def validate_project_state(workspace:Path,project_id:str):
     return {"status":status,"project_id":project_id,"checks":checks,"manifest_fingerprint":manifest["fingerprint"]}
 
 def export_project(workspace:Path,project_id:str):
-    root=workspace/project_id; manifest=load_manifest(workspace,project_id); destination=root/f"{project_id}.convertin.zip"; temporary=destination.with_suffix(".tmp")
+    root=workspace/project_id; manifest=load_manifest(workspace,project_id); destination=root/f"{project_id}.configmorph.zip"; temporary=destination.with_suffix(".tmp")
     files=[p for p in root.rglob("*") if p.is_file() and "backup" not in p.parts and p not in {destination,temporary}]
     with zipfile.ZipFile(temporary,"w",zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
         archive.writestr(zipfile.ZipInfo("export.json",(1980,1,1,0,0,0)),canonical({"schema":EXPORT_SCHEMA,"project_id":project_id,"project_fingerprint":manifest["fingerprint"],"sensitive_source_included":True})+b"\n")

@@ -12,4 +12,4 @@ Include a minimal sanitized reproducer, affected version, impact, and suggested 
 
 ## Configuration confidentiality
 
-Convert-In is local-only by design: no cloud API, telemetry, analytics, external AI, or configuration upload. Source configurations and generated workspaces remain sensitive plaintext on the local filesystem. Users must control host access, backups, filesystem permissions, and retention. Do not expose the service beyond its default `127.0.0.1` bind without adding appropriate authentication and TLS.
+ConfigMorph is local-only by design: no cloud API, telemetry, analytics, external AI, or configuration upload. Source configurations and generated workspaces remain sensitive plaintext on the local filesystem. Users must control host access, backups, filesystem permissions, and retention. Do not expose the service beyond its default `127.0.0.1` bind without adding appropriate authentication and TLS.

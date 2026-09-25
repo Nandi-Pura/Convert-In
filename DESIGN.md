@@ -1,8 +1,10 @@
-# Convert-In Design Direction
+# ConfigMorph Design Direction
+
+Canonical tagline: **Visualize. Analyze. Migrate.**
 
 ## Product
 
-Convert-In is a local firewall configuration engineering workbench. It is not a marketing SaaS, NOC dashboard, AI assistant, SIEM, or consumer application.
+ConfigMorph is a local firewall configuration engineering workbench. It is not a marketing SaaS, NOC dashboard, AI assistant, SIEM, or consumer application.
 
 ## Character
 

@@ -15,7 +15,7 @@ EXAMPLES={"fortigate":(Path("examples/fortigate/basic.conf"),"7.4"),"cisco_asa":
 def test_vendor_quick_convert_is_accounted_and_reviewable(vendor):
     path,version=EXAMPLES[vendor]; result=convert(path.read_text(),vendor,version)
     candidate="\n".join(result.lines)
-    assert candidate.startswith("# Convert-In\n# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED")
+    assert candidate.startswith("# ConfigMorph\n# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED")
     assert result.summary["total"]==sum(result.summary[x] for x in ("generated","manual_review","unsupported","version_not_verified"))
     assert result.extraction_coverage.semantic_total==result.extraction_coverage.normalized+result.extraction_coverage.recovered+result.extraction_coverage.unparsed+result.extraction_coverage.unsupported
     assert result.reference_integrity.total_entities==result.summary["total"]

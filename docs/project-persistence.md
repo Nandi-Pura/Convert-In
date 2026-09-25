@@ -8,6 +8,6 @@ JSON writes use a temporary file, flush, `fsync`, and atomic replacement. Legacy
 
 `GET /api/projects/{id}` opens persisted state without conversion. `POST /api/projects/{id}/validate` checks source identity, profile availability, files, hashes, and stale state. Validation reports `PASS`, `WARNING`, or `FAIL`; it does not claim device equivalence.
 
-Project Export uses `convert-in.project-export/v1` and `<project-id>.convertin.zip`. It includes `source.cfg`, so treat it as sensitive configuration data. Import stays local, verifies source SHA-256, validates schemas and paths, rejects absolute/traversal/symlink entries, and never overwrites a collision. Limits: 110 MiB compressed, 220 MiB expanded, 2,000 files. A collision receives a new local project ID while retaining `origin_project_id`.
+Project Export uses `convert-in.project-export/v1` and `<project-id>.configmorph.zip`. It includes `source.cfg`, so treat it as sensitive configuration data. Import stays local, verifies source SHA-256, validates schemas and paths, rejects absolute/traversal/symlink entries, and never overwrites a collision. Limits: 110 MiB compressed, 220 MiB expanded, 2,000 files. A collision receives a new local project ID while retaining `origin_project_id`.
 
 Project Export resumes engineering work. Evidence Pack supports audit handover and excludes source configuration by default.
