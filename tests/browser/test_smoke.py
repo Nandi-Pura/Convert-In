@@ -62,8 +62,9 @@ def test_fortigate_offline_workflow(page,live_server):
 
 def test_malformed_is_recoverable(page,live_server):
     live_server,_=live_server
-    page.goto(live_server+"/advanced"); page.get_by_role("tab",name="Paste").click(); page.locator("#source").fill("not a firewall configuration"); page.get_by_role("button",name="Analyze & Convert").click()
-    page.wait_for_timeout(300); assert page.locator("#source").input_value()=="not a firewall configuration"
+    page.goto(live_server+"/advanced"); page.get_by_role("tab",name="Paste").click(); page.locator("#source").fill("not a firewall configuration")
+    with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as response: page.get_by_role("button",name="Analyze & Convert").click()
+    assert response.value.status==422; assert page.locator("#source").input_value()=="not a firewall configuration"
 
 def open_result(page,live_server):
     page.goto(live_server)
@@ -81,7 +82,7 @@ def test_configmorph_workbench_flow_and_safety(page,live_server):
     for tab in ("Semantic Diff","Raw Comparison","Findings","Migration Plan","Evidence"):
         page.get_by_role("tab",name=tab,exact=True).click(); assert page.get_by_role("tab",name=tab,exact=True).get_attribute("aria-selected")=="true"
     page.get_by_role("tab",name="Raw Comparison",exact=True).click()
-    page.get_by_role("button",name="Blocked",exact=False).click()
+    page.locator(".toolbar").get_by_role("button",name="Blocked",exact=False).click()
     blocked=page.locator(".status > button").first
     if blocked.count():
         blocked.click(); assert page.get_by_role("button",name="Copy Selected").is_disabled()
@@ -94,7 +95,8 @@ def test_configmorph_viewports_and_focus(page,live_server):
         page.set_viewport_size({"width":width,"height":height})
         assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
         assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
-    page.get_by_role("button",name="Expand").click(); assert "focus" in page.locator("main").get_attribute("class")
+    workspace=page.get_by_test_id("compare-workspace"); normal=workspace.bounding_box()["height"]
+    page.get_by_test_id("focus-toggle").click(); assert "focus" in page.locator("main").get_attribute("class"); assert workspace.bounding_box()["height"]>normal
     page.keyboard.press("Escape"); assert "focus" not in page.locator("main").get_attribute("class")
 
 

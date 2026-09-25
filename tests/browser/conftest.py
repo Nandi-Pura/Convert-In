@@ -1,4 +1,5 @@
 import os,socket,subprocess,sys,tempfile,time
+from contextlib import suppress
 import pytest
 
 pytest.importorskip("pytest_playwright")
@@ -17,4 +18,10 @@ def live_server():
             if process.poll() is not None: pytest.fail("Browser test server exited during startup")
             time.sleep(.1)
     else: pytest.fail("Browser test server did not start")
-    yield url,log_path; process.terminate(); process.wait(timeout=5); log.close()
+    try: yield url,log_path
+    finally:
+        process.terminate()
+        with suppress(subprocess.TimeoutExpired): process.wait(timeout=5)
+        if process.poll() is None:
+            process.kill(); process.wait(timeout=5)
+        log.close()
