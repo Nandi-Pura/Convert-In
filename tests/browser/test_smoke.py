@@ -84,10 +84,27 @@ def test_configmorph_workbench_flow_and_safety(page,live_server):
         page.get_by_role("tab",name=tab,exact=True).click(); assert page.get_by_role("tab",name=tab,exact=True).get_attribute("aria-selected")=="true"
     page.get_by_role("tab",name="Raw Comparison",exact=True).click()
     page.locator(".toolbar").get_by_role("button",name="Blocked",exact=False).click()
-    blocked=page.locator(".status > button").first
+    blocked=page.locator(".semantic-item").first
     if blocked.count():
         blocked.click(); assert page.get_by_role("button",name="Copy Selected").is_disabled()
     assert page.locator("footer").get_by_text("Engineer Review Required",exact=False).is_visible()
+
+
+def test_configmorph_visual_composition(page,live_server):
+    live_server,_=live_server; page.set_viewport_size({"width":1440,"height":900}); open_result(page,live_server)
+    source=page.get_by_test_id("source-context"); target=page.get_by_test_id("target-context"); actions=page.get_by_test_id("actions-card"); summary=page.get_by_test_id("conversion-summary")
+    boxes=[item.bounding_box() for item in (source,target,actions,summary)]
+    assert max(box["y"] for box in boxes)-min(box["y"] for box in boxes)<2
+    assert max(box["height"] for box in boxes)-min(box["height"] for box in boxes)<2
+    assert source.evaluate("e => getComputedStyle(e).borderRadius")!="0px"
+    assert page.get_by_test_id("assurance-row").locator("article").count()==5
+    panes=page.locator(".compare > section"); assert panes.count()==3
+    widths=[pane.bounding_box()["width"] for pane in panes.all()]
+    assert max(widths)-min(widths)<30
+    assert page.locator(".status-rail").count()==2
+    assert page.locator(".semantic-item").count()>0
+    assert page.locator(".status-badge").first.is_visible()
+    assert page.locator(".semantic-item").count()<=20
 
 
 def test_configmorph_viewports_and_focus(page,live_server):
@@ -135,9 +152,9 @@ def test_configmorph_selectors_virtualization_and_stale_result(page,live_server)
     live_server,_=live_server; open_result(page,live_server)
     assert page.get_by_test_id("source-virtualized").locator(".code-line").count()<=90
     assert page.get_by_test_id("target-virtualized").locator(".code-line").count()<=90
-    entity=page.locator(".status > div > button").first
+    entity=page.locator(".semantic-item").first
     if entity.count():
-        entity.click(); assert entity.get_attribute("class")=="selected"
+        entity.click(); assert "selected" in entity.get_attribute("class").split()
     page.get_by_role("button",name="Edit Source").click()
     source_version=page.get_by_role("group",name="Edit source").get_by_label("Version")
     choices=source_version.locator("option").all_text_contents()
