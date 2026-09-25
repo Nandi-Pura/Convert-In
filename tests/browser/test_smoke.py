@@ -68,10 +68,11 @@ def test_malformed_is_recoverable(page,live_server):
 
 def open_result(page,live_server):
     page.goto(live_server)
+    page.get_by_role("button",name="Paste Configuration").click()
     page.get_by_role("textbox",name="Configuration").fill(Path("examples/fortigate/basic.conf").read_text())
-    page.get_by_role("button",name="Use pasted configuration").click()
+    page.get_by_role("button",name="Use Configuration").click()
     page.get_by_role("button",name="Analyze / Convert").click()
-    page.get_by_role("tab",name="Raw Comparison").wait_for(timeout=120000)
+    page.get_by_test_id("compare-workspace").wait_for(timeout=120000)
 
 
 def test_configmorph_workbench_flow_and_safety(page,live_server):
@@ -86,7 +87,7 @@ def test_configmorph_workbench_flow_and_safety(page,live_server):
     blocked=page.locator(".status > button").first
     if blocked.count():
         blocked.click(); assert page.get_by_role("button",name="Copy Selected").is_disabled()
-    assert page.get_by_text("Engineer Review Required",exact=False).is_visible()
+    assert page.locator("footer").get_by_text("Engineer Review Required",exact=False).is_visible()
 
 
 def test_configmorph_viewports_and_focus(page,live_server):
@@ -106,3 +107,57 @@ def test_configmorph_line_accounting_and_project_export(page,live_server):
     assert sum(values)==100
     assert page.get_by_role("link",name="Export Project").is_visible()
     assert "7.4" in page.locator(".context article").first.inner_text()
+
+
+def test_configmorph_empty_shell_and_import(page,live_server):
+    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
+    assert page.get_by_text("ConfigMorph",exact=True).is_visible()
+    assert page.get_by_test_id("source-context").get_by_text("No source configuration loaded.").is_visible()
+    assert page.get_by_test_id("target-context").get_by_text("No target selected.").is_visible()
+    assert page.get_by_role("button",name="Analyze / Convert").is_disabled()
+    assert page.get_by_test_id("conversion-summary").get_by_text("0 lines analyzed").is_visible()
+    assert page.get_by_test_id("assurance-row").get_by_text("Source Parsing").is_visible()
+    for tab in ("Semantic Diff","Raw Comparison","Findings","Migration Plan","Evidence"):
+        assert page.get_by_role("tab",name=tab,exact=True).is_visible()
+    assert page.get_by_text("Import a configuration to begin a migration review.").is_visible()
+    page.get_by_role("button",name="Paste Configuration").click()
+    page.get_by_role("textbox",name="Configuration").fill(Path("examples/fortigate/basic.conf").read_text())
+    page.get_by_role("button",name="Use Configuration").click()
+    assert not page.get_by_role("textbox",name="Configuration").is_visible()
+    page.wait_for_function("() => !document.querySelector('button.primary')?.disabled")
+    assert page.get_by_role("button",name="Analyze / Convert").is_enabled()
+    for width,height in ((1280,800),(1440,900),(1600,900),(1920,1080)):
+        page.set_viewport_size({"width":width,"height":height})
+        assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
+
+
+def test_configmorph_selectors_virtualization_and_stale_result(page,live_server):
+    live_server,_=live_server; open_result(page,live_server)
+    assert page.get_by_test_id("source-virtualized").locator(".code-line").count()<=90
+    assert page.get_by_test_id("target-virtualized").locator(".code-line").count()<=90
+    entity=page.locator(".status > div > button").first
+    if entity.count():
+        entity.click(); assert entity.get_attribute("class")=="selected"
+    page.get_by_role("button",name="Edit Source").click()
+    source_version=page.get_by_role("group",name="Edit source").get_by_label("Version")
+    choices=source_version.locator("option").all_text_contents()
+    if len(choices)>1: source_version.select_option(label=choices[1])
+    else: page.get_by_role("group",name="Edit source").get_by_label("Platform").select_option(index=0)
+    assert page.get_by_text("Previous analysis is stale.",exact=False).is_visible()
+    assert page.locator(".workspace-empty").get_by_text("Run Analyze / Convert again.",exact=False).is_visible()
+
+
+def test_configmorph_detects_fortios_7013_and_selects_panos_111(page,live_server):
+    live_server,_=live_server; page.goto(live_server)
+    config='#config-version=FG39E8-7.0.13-FW-build0000-000000:opmode=0:vdom=0:user=admin\nconfig firewall address\n edit "WEB"\n  set subnet 192.0.2.1 255.255.255.255\n next\nend\nconfig firewall policy\nend\n'
+    page.get_by_role("button",name="Paste Configuration").click()
+    page.get_by_role("textbox",name="Configuration").fill(config)
+    page.get_by_role("button",name="Use Configuration").click()
+    page.get_by_role("button",name="Analyze / Convert").wait_for(state="visible")
+    page.wait_for_function("() => !document.querySelector('button.primary')?.disabled")
+    page.get_by_role("button",name="Edit Source").click()
+    assert page.get_by_role("group",name="Edit source").get_by_label("Version").input_value()=="7.0.13"
+    page.get_by_role("button",name="Change Target").click()
+    target=page.get_by_role("group",name="Change target")
+    assert target.get_by_label("Platform").locator("option:checked").inner_text()=="PAN OS"
+    assert target.get_by_label("Version").input_value()=="11.1"

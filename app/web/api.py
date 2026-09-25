@@ -18,7 +18,7 @@ from app.core.migration import MigrationMappings, MigrationPlanner, build_plan_a
 from app.core.renderers import PaloAltoRenderer
 from app.core.migration.validation import validate_candidate
 from app.core.review import ReviewDecision,build_review,export_package,load_decisions,update_decision,validate_migration
-from app.core.versions import resolve_context
+from app.core.versions import detect_version,resolve_context
 from app.core.versions.models import VersionContext
 from app.core.pan_lab import PanLabValidationResult
 from app.core.reference_integrity import ReferenceIntegrityValidator
@@ -198,7 +198,8 @@ def detect_configuration(source:WorkbenchSource):
     config=ingest_source_text(source.source_text)
     detected,version=detect_source(config)
     domain=detect_domain(config)
-    return {"vendor":detected.vendor.value,"version":version,"confidence":detected.confidence,"domain":domain.primary.value if domain.primary else None,"capabilities":[x.value for x in sorted(domain.capabilities,key=lambda x:x.value)],"ambiguous_domain":domain.ambiguous}
+    exact=detect_version(config,detected.vendor).detected_version if detected.vendor!=Vendor.UNKNOWN else None
+    return {"vendor":detected.vendor.value,"version":exact or version,"confidence":detected.confidence,"domain":domain.primary.value if domain.primary else None,"capabilities":[x.value for x in sorted(domain.capabilities,key=lambda x:x.value)],"ambiguous_domain":domain.ambiguous}
 
 @router.get("/convert/{project_id}/download")
 def download_converted_config(project_id:str):
