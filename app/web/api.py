@@ -1,4 +1,5 @@
 import json,zipfile
+from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from html import escape
 from pathlib import Path
@@ -29,8 +30,10 @@ from app.core.linting import build_lint_artifact, lint_config, serialize_lint_ar
 from app.core.semantic_diff import atomic_write, build_semantic_diff, serialize_semantic_diff
 from app.core.evidence_pack import build as build_evidence_pack
 from app.core.project_state import create_manifest,export_project,import_project,invalidate,load_manifest,validate_project_state
+from app.core import operations
 
 router = APIRouter(prefix="/api")
+executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix="convert")
 
 class WorkbenchSource(BaseModel):
     source_text:str
@@ -71,6 +74,45 @@ def run_workbench(source:WorkbenchSource):
         create_manifest(root,project,context)
         result["project_id"]=project; return result
     except ValueError as exc: raise HTTPException(422,str(exc)) from exc
+
+def _operation_worker(operation_id:str,source:WorkbenchSource):
+    try:
+        operations.update(operation_id,"VALIDATING_SOURCE","COMPLETE")
+        result=run_workbench_instrumented(source,lambda stage,status="ACTIVE",counts=None:operations.update(operation_id,stage,status,counts))
+        operations.finish(operation_id,result)
+    except Exception as exc:
+        stage=(operations.get(operation_id) or {}).get("stage","VALIDATING_SOURCE"); operations.fail(operation_id,stage,exc)
+
+def run_workbench_instrumented(source:WorkbenchSource,progress):
+    config=ingest_source_text(source.source_text); detected=detect_vendor(config)
+    try: vendor=detected.vendor if source.source_vendor=="auto" else Vendor(source.source_vendor)
+    except ValueError as exc: raise ValueError("Unsupported source platform.") from exc
+    if vendor==Vendor.UNKNOWN:raise ValueError("Could not detect source platform.")
+    selected=source.source_version or resolve_context(config,vendor,None).detected_family
+    if not selected:raise ValueError("Source version was not verified. Select it explicitly.")
+    target_profile=source.target_profile or ("router-huawei-vrp" if vendor==Vendor.CISCO_IOSXE else "firewall-paloalto-panos"); target_version=source.target_version if source.target_profile else ("" if vendor==Vendor.CISCO_IOSXE else source.target_version)
+    result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings,progress)
+    for stage,counts in (("CP1",{"findings":result["cp1_summary"].get("blocking_findings",0)}),("CP2",result.get("cp2_summary") or {}),("RENDERING",{"commands":sum(len(x["commands"]) for x in result["entities"])}),("SEMANTIC_DIFF",{}),("FINDINGS",{"findings":len(result["lint_findings"])})):
+        if stage=="RENDERING" and not result["renderer_available"]:continue
+        progress(stage); progress(stage,"COMPLETE",counts)
+    project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"]},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
+    source_profile=platform_profile(result["source_profile"]["id"]); target=platform_profile(result["target_profile"]["id"]); context={"source_filename":"source.cfg","source":{"domain":source_profile.domain.value,"vendor":source_profile.vendor.value,"platform":source_profile.platform.value,"exact_version":result["source_profile"]["version"],"profile_id":source_profile.id},"target":{"domain":target.domain.value,"vendor":target.vendor.value,"platform":target.platform.value,"exact_version":result["target_profile"]["version"],"profile_id":target.id}}
+    (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
+    if result.get("candidate"): migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
+    create_manifest(root,project,context); result["project_id"]=project; return result
+
+@router.post("/workbench/operations",status_code=202)
+def start_workbench_operation(source:WorkbenchSource):
+    target=platform_profile(source.target_profile,source.target_version); render=bool(target and target.target_renderer)
+    project=str(uuid5(NAMESPACE_URL,json.dumps({"source":source.source_text,"source_profile":source.source_profile,"target_profile":source.target_profile},sort_keys=True)))
+    operation_id=operations.create(project,"CONVERT" if render else "ANALYZE",render,{"domain":target.domain.value if target else None,"source_profile":source.source_profile,"target_profile":source.target_profile})
+    executor.submit(_operation_worker,operation_id,source); return {"operation_id":operation_id,"status":"RUNNING"}
+
+@router.get("/operations/{operation_id}")
+def operation_status(operation_id:str):
+    state=operations.get(operation_id)
+    if not state:raise HTTPException(404,"Operation not found")
+    return state
 
 @router.post("/projects/{project_id}/migration/evidence-pack")
 def create_evidence_pack(project_id:str):

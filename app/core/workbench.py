@@ -37,7 +37,8 @@ def _normalized(entity):
     return "\n".join(f"{k.replace('_',' ').title()}: {', '.join(map(str,v)) if isinstance(v,list) else v}" for k,v in data.items())
 
 
-def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",source_profile_id:str|None=None,target_profile_id:str="firewall-paloalto-panos",mappings:dict|None=None):
+def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",source_profile_id:str|None=None,target_profile_id:str="firewall-paloalto-panos",mappings:dict|None=None,progress=None):
+    progress=progress or (lambda stage,status="ACTIVE",counts=None:None)
     source_profile_id=source_profile_id or {Vendor.ASA:"firewall-cisco-asa",Vendor.FORTIGATE:"firewall-fortinet-fortigate",Vendor.PALO_ALTO:"firewall-paloalto-panos",Vendor.JUNIPER_SRX:"firewall-juniper-srx",Vendor.CISCO_IOSXE:"router-cisco-iosxe"}.get(vendor)
     profile=platform_profile(source_profile_id,source_version); target_profile=platform_profile(target_profile_id,target_version)
     if not profile or not profile.source_parser:raise ValueError("Invalid source platform or version profile.")
@@ -45,7 +46,8 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         target_profile=platform_profile(target_profile_id)
     if not target_profile or target_profile.domain!=profile.domain:raise ValueError("Source and target domains must match.")
     mode=WorkbenchMode.CONVERT if lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version) else WorkbenchMode.ANALYZE
-    cfg=parse_profile(text,profile.id,source_version); lines=text.splitlines()
+    progress("PARSING"); cfg=parse_profile(text,profile.id,source_version); lines=text.splitlines(); progress("PARSING","COMPLETE",{"constructs":sum(len(v) for v in cfg.model_dump().values() if isinstance(v,list))})
+    progress("NORMALIZING"); progress("NORMALIZING","COMPLETE"); progress("CP0"); progress("CP0","COMPLETE",{k:getattr(cfg.extraction_coverage,k) for k in ("normalized","recovered","unsupported")})
     if isinstance(cfg,SwitchConfig):
         integrity=SwitchReferenceIntegrityValidator().validate(cfg);cp2=SwitchCompatibilityEvaluator().evaluate(cfg,profile,target_profile,mappings or {},integrity);renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version);commands=defaultdict(list);candidate=None
         if renderer_type:

@@ -108,7 +108,7 @@ def test_workbench_accepts_large_json_paste(page,live_server):
     assert 1024*1024<len(text.encode())<5*1024*1024
     page.locator("#source-text").evaluate("(element,value)=>{element.value=value;element.dispatchEvent(new Event('input',{bubbles:true}))}",text); page.locator("#source-status").wait_for(); page.locator("#source-vendor").select_option("FORTINET"); assert page.locator("#source-platform").input_value()=="firewall-fortinet-fortigate"; page.locator("#source-version").select_option("7.4.12"); page.locator("#target-vendor").select_option("FORTINET"); page.locator("#target-version").select_option("7.6.4")
     assert page.locator("#source-exact").inner_text()=="Exact release: 7.4.12" and page.locator("#target-exact").inner_text()=="Exact release: 7.6.4"
-    with page.expect_response(lambda response:response.url.endswith("/api/workbench/run")) as submitted: page.get_by_role("button",name="Convert",exact=True).click()
+    with page.expect_response(lambda response:response.url.endswith("/api/workbench/operations")) as submitted: page.get_by_role("button",name="Convert",exact=True).click()
     body=submitted.value.text(); assert submitted.value.ok, f"HTTP {submitted.value.status}: {body}"
     assert "Part exceeded maximum size" not in body
     page.locator(".semantic-entity").first.wait_for()
@@ -157,6 +157,24 @@ def test_comparison_panes_scroll_without_document_scroll(page,live_server):
     assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
 
 
+def test_conversion_progress_duplicate_suppression_and_elapsed_stop(page,live_server):
+    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
+    page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
+    requests=[]; page.on("request",lambda request:requests.append(request.url) if request.url.endswith("/api/workbench/operations") else None)
+    page.get_by_role("button",name="Convert",exact=True).click(); page.locator("#operation-progress").wait_for(); page.locator("#run").click(force=True)
+    assert page.locator("#operation-stages li").count()>1
+    page.locator("#operation-summary").wait_for(); assert len(requests)==1 and "completed in" in page.locator("#operation-summary").inner_text()
+    elapsed=page.locator("#operation-elapsed").inner_text(); page.wait_for_timeout(1100); assert page.locator("#operation-elapsed").inner_text()==elapsed
+    assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
+
+
+def test_conversion_progress_failure_stops_timer(page,live_server):
+    live_server,_=live_server; page.route("**/api/operations/*",lambda route:route.fulfill(json={"status":"FAILED","stage":"CP2","elapsed_ms":20,"error":{"message":"Target profile is not available."},"stages":[{"name":name,"status":"FAILED" if name=="CP2" else "COMPLETE" if name in {"VALIDATING_SOURCE","PARSING","NORMALIZING","CP0","CP1"} else "PENDING","counts":{}} for name in ("VALIDATING_SOURCE","PARSING","NORMALIZING","CP0","CP1","CP2","RENDERING","SEMANTIC_DIFF","FINDINGS","FINALIZING","COMPLETE")]})); page.goto(live_server); page.get_by_role("tab",name="Paste").click(); page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
+    page.get_by_role("button",name="Convert",exact=True).click()
+    page.get_by_text("Conversion failed",exact=True).wait_for(); assert page.locator("#operation-stages li.FAILED").count()==1 and page.locator("#run").is_enabled()
+    elapsed=page.locator("#operation-elapsed").inner_text(); page.wait_for_timeout(1100); assert page.locator("#operation-elapsed").inner_text()==elapsed
+
+
 def test_evidence_pack_export_for_analysis_only_project(page,live_server):
     live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
     page.locator("#source-text").fill(Path("tests/fixtures/iosxe/policy-router.cfg").read_text())
@@ -172,9 +190,9 @@ def test_project_reopen_restores_exact_target_without_conversion(page,live_serve
     live_server,_=live_server; page.goto(live_server); page.get_by_role("tab",name="Paste").click()
     page.locator("#source-text").fill(Path("examples/fortigate/basic.conf").read_text())
     page.locator("#source-platform").select_option("firewall-fortinet-fortigate"); page.locator("#target-version").select_option("11.1")
-    with page.expect_response("**/api/workbench/run") as run: page.get_by_role("button",name="Convert",exact=True).click()
-    project=run.value.json()["project_id"]; page.locator(".semantic-entity").first.wait_for()
-    requests=[]; page.on("request",lambda request: requests.append(request.url) if "/api/workbench/run" in request.url else None)
+    page.get_by_role("button",name="Convert",exact=True).click(); page.locator(".semantic-entity").first.wait_for()
+    project=page.evaluate("state.result.project_id")
+    requests=[]; page.on("request",lambda request: requests.append(request.url) if "/api/workbench/operations" in request.url else None)
     page.evaluate("id => openProject(id)",project); page.get_by_text("Saved",exact=False).wait_for()
     assert page.locator("#target-version").input_value()=="11.1" and not requests
     assert page.get_by_role("button",name="Export Project").is_enabled()

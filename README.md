@@ -17,6 +17,8 @@ Assurance pipeline: [CP0 Source Extraction Coverage](docs/extraction-coverage.md
 
 See [Unified workbench](docs/ui-workbench.md) for copy gates and interaction details. **Advanced Workbench** remains available at `/advanced` for visualization, mapping, compatibility evidence, semantic review, application validation, optional PAN lab validation, and package export.
 
+Convert and Analyze show stage-level progress and elapsed runtime. Safe terminal lifecycle logs are documented in [Conversion operations](docs/operations.md).
+
 Current capabilities:
 
 - Cisco ASA, FortiGate, and Palo Alto PAN-OS XML parsing
