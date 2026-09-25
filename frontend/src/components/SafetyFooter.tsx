@@ -1,0 +1,1 @@
+export default function SafetyFooter({projectId}:{projectId?:string}){return <footer className="figma-footer"><span>⚠ Candidate configuration · Engineer review required · No device deployment</span><span>ConfigMorph · ● Local Only{projectId?` · Project: ${projectId.slice(0,16)}`:''}</span></footer>}

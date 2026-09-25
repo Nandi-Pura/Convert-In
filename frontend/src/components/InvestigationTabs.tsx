@@ -1,0 +1,3 @@
+export const tabNames=['Raw Comparison','Semantic Diff','Findings','Migration Plan','Evidence'] as const;
+export type TabName=typeof tabNames[number];
+export default function InvestigationTabs({active,findings,onChange}:{active:TabName;findings?:number;onChange:(tab:TabName)=>void}){return <div className="figma-tabs" role="tablist" aria-label="Investigation views">{tabNames.map(tab=><button key={tab} role="tab" aria-label={tab} aria-selected={active===tab} className={active===tab?'active':''} onClick={()=>onChange(tab)}>{tab}{tab==='Findings'&&findings!==undefined?<span aria-hidden="true">{findings.toLocaleString()}</span>:null}</button>)}</div>}

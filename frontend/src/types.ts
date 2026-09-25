@@ -10,3 +10,6 @@ export interface Result{project_id:string;mode:'CONVERT'|'ANALYZE';renderer_avai
 export interface Stage{name:string;status:string;counts:Record<string,number>;duration_ms?:number}
 export interface Operation{operation_id:string;status:string;stage:string;stages:Stage[];elapsed_ms:number;completed?:boolean;error?:{message:string};result?:Result}
 export interface Manifest{project_id:string;source:{filename:string;size_bytes:number;line_count:number;exact_version:string};target:{exact_version:string};artifacts:Record<string,{status:string}>;fingerprint:string}
+export interface PlanEntity{entity_id:string;entity_type:string;source_name:string;target_name?:string;compatibility_status:string;render_eligible:boolean;blocking:boolean;reasons:string[];required_mappings:string[];dependencies:string[]}
+export interface MigrationPlan{plan_id:string;summary:Record<string,number>;entities:PlanEntity[];blocked:{entity_id?:string;reason:string}[];advisories:string[]}
+export interface Evidence{fingerprint:string;artifacts:{name:string;status:string;path?:string;sha256?:string}[];source?:{sha256?:string;profile_id?:string;exact_version?:string};target?:{profile_id?:string;exact_version?:string}}
