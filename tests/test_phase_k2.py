@@ -28,7 +28,7 @@ def test_local_address_dto_has_documented_root_and_context(data,path):
 def test_group_service_and_route_dtos():
     renderer,_,_=render("address_group",{"members":["member_1"]}); assert renderer.commands[0].path==["set","address-group","safe_name","static","member_1"]
     renderer,_,_=render("service",{"protocol":"tcp","ports":["443"]}); assert renderer.commands[0].path==["set","service","safe_name","protocol","tcp","port","443"]
-    renderer,_,_=render("service_group",{"members":["https"]}); assert renderer.commands[0].path==["set","service-group","safe_name","static","https"]
+    renderer,_,_=render("service_group",{"members":["https"]}); assert renderer.commands[0].path==["set","service-group","safe_name","members","https"]
     route={"virtual_router":"default","destination":"192.0.2.0/24","next_hop":"198.51.100.1","interface":"ethernet1/1","metric":10}
     renderer,_,_=render("route",route); assert renderer.commands[0].path[:8]==["set","network","virtual-router","default","routing-table","ip","static-route","safe_name"]
 
@@ -47,8 +47,11 @@ def test_panorama_context_is_explicit_and_generation_blocked():
 
 def test_serializer_rejects_unsafe_tokens_without_quoting():
     assert quote("safe_name-1.2/3")=="safe_name-1.2/3"
-    with pytest.raises(ValueError): quote("unsafe name")
+    assert quote("unsafe name")=='"unsafe name"'
+    with pytest.raises(ValueError): quote("unsafe\nname")
     _,lines,report=render("address",{"type":"host","value":"192.0.2.1/32"},name="unsafe name")
+    assert lines == ['set address "unsafe name" ip-netmask 192.0.2.1/32'] and not report.errors
+    _,lines,report=render("address",{"type":"host","value":"192.0.2.1/32"},name="unsafe\nname")
     assert not lines and "unsafe PAN-OS name" in report.errors[0]
 
 def test_candidate_validator_accepts_documented_local_firewall_roots():

@@ -119,6 +119,23 @@ class PolicyOrderingPlan(BaseModel):
             if i and action.reference_rule not in generated: raise ValueError("unknown generated rule")
         return self
 
+class NatRuleOrderingAction(BaseModel):
+    rule_name:str; relation:SecurityRuleOrderRelation; reference_rule:str|None=None
+    target_profile:str; documentation_refs:list[str]; mechanism:str="PANOS_CONFIG_API_MOVE"; external_target_dependency:bool=False
+
+class NatPolicyOrderingPlan(BaseModel):
+    target_profile:str; placement:NatRulePlacement; source_order:list[str]
+    actions:list[NatRuleOrderingAction]; documentation_refs:list[str]
+    mechanism:str="PANOS_CONFIG_API_MOVE"; execution:str="ENGINEER_REVIEW_REQUIRED"
+    @model_validator(mode="after")
+    def complete_acyclic_order(self):
+        names=[x.rule_name for x in self.actions]
+        if len(names)!=len(set(names)) or names!=self.source_order: raise ValueError("NAT source-order mismatch, duplicate, or omitted rule")
+        for i,action in enumerate(self.actions):
+            expected=self.placement.mode if i==0 else SecurityRuleOrderRelation.AFTER
+            reference=self.placement.anchor_rule if i==0 else names[i-1]
+            if action.relation!=expected or action.reference_rule!=reference: raise ValueError("NAT ordering cycle, unknown rule, or invalid relation")
+        return self
 class CategoryCounts(BaseModel):
     objects:int=0; services:int=0; interfaces:int=0; zones:int=0; security_policies:int=0; nat_policies:int=0; routes:int=0
 
@@ -130,6 +147,7 @@ class MigrationReport(BaseModel):
     compatibility:list[CompatibilityResult]; names:list[NameMapping]
     source_version:VersionContext|None=None; target_version:VersionContext|None=None; documentation_refs:list[str]=Field(default_factory=list); version_validation_result:str="BLOCKING"
     security_rule_ordering:PolicyOrderingPlan|None=None
+    nat_rule_ordering:NatPolicyOrderingPlan|None=None
 
 class PanSetCommand(BaseModel):
     operation:str="SET"; path:list[str]; values:list[str]=Field(default_factory=list); entity_id:str; text:str=""

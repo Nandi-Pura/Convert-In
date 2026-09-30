@@ -513,6 +513,9 @@ def migration_render(project_id:str):
     candidate="\n".join(lines)+("\n" if lines else "")
     (root/"candidate-pan-os.set").write_text(candidate or "",encoding="utf-8"); (root/"migration-report.json").write_text(report.model_dump_json(indent=2),encoding="utf-8")
     ordering=getattr(renderer,"ordering_plan",None); ordering_path=root/"security-rule-ordering.json"
+    nat_ordering=getattr(renderer,"nat_ordering_plan",None); nat_ordering_path=root/"nat-rule-ordering.json"
+    if nat_ordering: nat_ordering_path.write_text(nat_ordering.model_dump_json(indent=2),encoding="utf-8")
+    elif nat_ordering_path.exists(): nat_ordering_path.unlink()
     if ordering: ordering_path.write_text(ordering.model_dump_json(indent=2),encoding="utf-8")
     elif ordering_path.exists(): ordering_path.unlink()
     cfg,_,_=_migration(project_id); review=build_review(cfg,plan,getattr(renderer,"commands",[]),load_decisions(root))

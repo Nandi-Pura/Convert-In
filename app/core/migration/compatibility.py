@@ -2,13 +2,15 @@ import hashlib
 from .models import CompatibilityResult, CompatibilityStatus
 
 SEMANTIC_FIELDS={
-    "address":{"type":"type","value":"value"},
-    "address_group":{"members":"members"},
-    "service":{"protocol":"protocol","source_ports":"source_ports","destination_ports":"ports"},
-    "service_group":{"members":"members"},
-    "security_policy":{"source_zones":"from","destination_zones":"to","sources":"source","destinations":"destination","services":"service","action":"action","enabled":"enabled","log_start":"log_start","log_end":"log_end","position":"position"},
-    "nat_policy":{"source_zones":"from","destination_zones":"to","original_source":"source","original_destination":"destination","original_service":"service","type":"type","translated_source":"translated_source","translated_destination":"translated_destination","translated_service":"translated_service","translation_target":"translation_target","position":"position"},
-    "route":{"destination":"destination","next_hop":"next_hop","interface":"interface","metric":"metric"},
+    "address":{"type":"type","value":"value","description":"description","tags":"tags"},
+    "address_group":{"members":"members","description":"description","tags":"tags"},
+    "service":{"protocol":"protocol","source_ports":"source_ports","destination_ports":"ports","description":"description","tags":"tags"},
+    "service_group":{"members":"members","description":"description","tags":"tags"},
+    "interface":{"type":"type","ipv4":"ipv4","enabled":"enabled","vlan":"vlan","parent":"parent","virtual_router":"virtual_router","description":"description"},
+    "zone":{"interfaces":"interfaces"},
+    "security_policy":{"source_zones":"from","destination_zones":"to","sources":"source","destinations":"destination","services":"service","applications":"application","action":"action","enabled":"enabled","log_start":"log_start","log_end":"log_end","position":"position","description":"description","tags":"tags"},
+    "nat_policy":{"source_zones":"from","destination_zones":"to","original_source":"source","original_destination":"destination","original_service":"service","type":"type","translated_source":"translated_source","translated_destination":"translated_destination","translated_service":"translated_service","translated_port":"translated_port","translation_target":"translation_target","enabled":"enabled","description":"description","tags":"tags","position":"position"},
+    "route":{"destination":"destination","next_hop":"next_hop","interface":"interface","metric":"metric","distance":"distance","enabled":"enabled","virtual_router":"virtual_router"},
 }
 
 def result(entity,kind,status,*reasons,required=(),topology=None):
@@ -22,7 +24,7 @@ def finalize(item,entity,source_profile,target_profile,capability,management_mod
     item.source_semantic=entity.model_dump(mode="json",exclude={"provenance","vendor_extensions"})
     item.target_semantic=target_data or {}
     fields=SEMANTIC_FIELDS.get(item.entity_type,{})
-    item.preserved_semantics=sorted(source_key for source_key,target_key in fields.items() if target_key in item.target_semantic)
+    item.preserved_semantics=sorted(source_key for source_key,target_key in fields.items() if target_key in item.target_semantic and item.source_semantic.get(source_key) not in (None,[]))
     item.lost_semantics=sorted(source_key for source_key,target_key in fields.items() if item.source_semantic.get(source_key) not in (None,[],False) and target_key not in item.target_semantic)
     item.required_context=list(item.required_mappings)
     item.source_evidence_refs=list(source.documentation_refs) if source else []

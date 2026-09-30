@@ -14,11 +14,18 @@ class MigrationPlanner:
         source=cfg.metadata.get("source_vendor")
         source=Vendor(source); cfg=source_adapter(source)().adapt(cfg)
         entities=cfg.interfaces+cfg.zones+cfg.addresses+cfg.address_groups+cfg.services+cfg.service_groups+cfg.security_policies+cfg.nat_policies+cfg.static_routes+cfg.vpn_objects
-        names=normalize_names(entities); targets={x.entity_id:x.target_name for x in names}; by_name={x.name:x for x in cfg.addresses+cfg.address_groups+cfg.services+cfg.service_groups}
-        interface_maps,zone_maps=confirmed_maps(mappings); compatibility=[]; generate=[]
+        names=normalize_names(entities); targets={x.entity_id:x.target_name for x in names}
+        address_by_name={x.name:x for x in cfg.addresses+cfg.address_groups}
+        service_by_name={x.name:x for x in cfg.services+cfg.service_groups}
+        interface_by_name={x.name:x for x in cfg.interfaces}
+        interface_maps,zone_maps=confirmed_maps(mappings); compatibility=[]; generate=[]; non_renderable=set()
         source_profile=version_profile(source,source_version.selected_family) if source_version else None
         target_profile=target_version_profile(target_vendor,target_version.selected_family) if target_version else None
-        fortios=target_vendor==Vendor.FORTIGATE; asa=target_vendor==Vendor.ASA; srx=target_vendor==Vendor.JUNIPER_SRX
+        fortios=target_vendor==Vendor.FORTIGATE; asa=target_vendor==Vendor.ASA; srx=target_vendor==Vendor.JUNIPER_SRX; pan_same=source==Vendor.PALO_ALTO and target_vendor==Vendor.PALO_ALTO
+        if pan_same:
+            zone_maps={z.name:z.name for z in cfg.zones}
+            for name in names: name.target_name=name.source_name; name.collision=False; name.reason=None
+            targets={x.entity_id:x.target_name for x in names}
         if fortios:
             scoped=[m for m in mappings.interfaces if m.confirmed and (m.target_profile or m.target_version)]
             for m in scoped:
@@ -42,14 +49,20 @@ class MigrationPlanner:
             item.documentation_refs=refs; item.version_status=version_status
             finalize(item,entity,source_profile,target_profile,capability,mappings.management_mode.value,data)
             compatibility.append(item)
-            if data is not None and status in {S.EXACT,S.SUPPORTED} and kind!="nat_policy": generate.append(PlannedEntity(entity_id=entity.id,entity_type=kind,target_name=targets[entity.id],data=data))
+            if item.blocking: non_renderable.add(entity.id)
+            if data is not None and status in {S.EXACT,S.SUPPORTED}: generate.append(PlannedEntity(entity_id=entity.id,entity_type=kind,target_name=targets[entity.id],data=data))
         for x in cfg.interfaces:
             mapping=interface_maps.get(x.name)
-            if srx and mapping and mapping.target_interface and mapping.target_zone:
+            if pan_same and not x.vendor_extensions.get("manual_review") and x.enabled:
+                add(x,"interface",S.SUPPORTED,{"name":x.name,"type":x.type,"ipv4":x.ipv4,"enabled":x.enabled,"description":x.description,"vlan":x.vlan,"parent":x.parent,"virtual_router":x.virtual_router})
+            elif srx and mapping and mapping.target_interface and mapping.target_zone:
                 add(x,"interface",S.SUPPORTED,{"interface":mapping.target_interface,"zone":mapping.target_zone})
-            else: add(x,"interface",S.MANUAL_REVIEW,None,"Confirmed target interface and zone mapping is required; interface L3 configuration is not generated.",required=[f"interface:{x.name}"] if not mapping else [])
-        for x in cfg.zones: add(x,"zone",S.MANUAL_REVIEW,None,"Zone creation is not automatic; confirmed mappings are used by dependent rules.",required=[f"zone:{x.name}"] if x.name not in zone_maps else [])
+            else: add(x,"interface",S.MANUAL_REVIEW,None,x.vendor_extensions.get("manual_review") or "Confirmed target interface and zone mapping is required; interface L3 configuration is not generated.",required=[f"interface:{x.name}"] if not mapping and not pan_same else [])
+        for x in cfg.zones:
+            if pan_same and not x.vendor_extensions.get("manual_review") and all(i in interface_by_name and interface_by_name[i].id not in non_renderable for i in x.interfaces): add(x,"zone",S.SUPPORTED,{"name":x.name,"interfaces":x.interfaces})
+            else: add(x,"zone",S.MANUAL_REVIEW,None,x.vendor_extensions.get("manual_review") or "Zone creation is not automatic; confirmed mappings are used by dependent rules.",required=[f"zone:{x.name}"] if x.name not in zone_maps else [])
         for x in cfg.addresses:
+            if pan_same and (x.tags or x.vendor_extensions): add(x,"address",S.MANUAL_REVIEW,None,"Address tags or unsupported settings require manual review."); continue
             if (fortios or asa or srx) and targets[x.id]!=x.name: add(x,"address",S.MANUAL_REVIEW,None,f"{target_profile.os_name} object name requires an explicit engineer-confirmed mapping."); continue
             try:
                 if x.type=="host": value=str(ipaddress.ip_address(x.value)); value+=f"/{32 if ':' not in value else 128}"
@@ -59,34 +72,37 @@ class MigrationPlanner:
                 elif x.type=="fqdn" and x.value and " " not in x.value: value=x.value
                 else: raise ValueError
                 if (fortios or asa or srx) and (":" in value or x.type=="fqdn"): raise ValueError
-                add(x,"address",S.SUPPORTED,{"type":x.type,"value":value})
+                add(x,"address",S.SUPPORTED,{"type":x.type,"value":value,"description":x.description})
             except (ValueError,TypeError,AttributeError): add(x,"address",S.MANUAL_REVIEW,None,"Invalid or unsupported normalized address value.")
         for x in cfg.address_groups:
+            if pan_same and (x.tags or x.vendor_extensions): add(x,"address_group",S.MANUAL_REVIEW,None,"Address-group tags or unsupported settings require manual review."); continue
             if (fortios or asa or srx) and targets[x.id]!=x.name: add(x,"address_group",S.MANUAL_REVIEW,None,f"{target_profile.os_name} group name requires an explicit engineer-confirmed mapping."); continue
-            missing=[m for m in x.members if m not in by_name]; cycle=x.id in cycles
-            if missing or cycle or srx and any(by_name.get(m) in cfg.address_groups for m in x.members): add(x,"address_group",S.MANUAL_REVIEW,None,"Nested, cyclic, or unresolved address-set dependency requires review." if srx else "Group cycle detected." if cycle else f"Missing members: {', '.join(missing)}")
-            else: add(x,"address_group",S.SUPPORTED,{"members":[targets[by_name[m].id] for m in x.members],"member_types":["group" if by_name[m] in cfg.address_groups else "object" for m in x.members]})
+            missing=[m for m in x.members if m not in address_by_name or address_by_name[m].id in non_renderable]; cycle=x.id in cycles
+            if missing or cycle or srx and any(address_by_name.get(m) in cfg.address_groups for m in x.members): add(x,"address_group",S.MANUAL_REVIEW,None,"Nested, cyclic, or unresolved address-set dependency requires review." if srx else "Group cycle detected." if cycle else f"Missing members: {', '.join(missing)}")
+            else: add(x,"address_group",S.SUPPORTED,{"members":[targets[address_by_name[m].id] for m in x.members],"member_types":["group" if address_by_name[m] in cfg.address_groups else "object" for m in x.members],"description":x.description})
         for x in cfg.services:
+            if pan_same and (x.tags or x.vendor_extensions): add(x,"service",S.MANUAL_REVIEW,None,"Service tags or unsupported settings require manual review."); continue
             if (fortios or asa or srx) and targets[x.id]!=x.name: add(x,"service",S.MANUAL_REVIEW,None,f"{target_profile.os_name} service name requires an explicit engineer-confirmed mapping."); continue
             if x.vendor_extensions.get("source_operator") or x.vendor_extensions.get("destination_operator"): add(x,"service",S.MANUAL_REVIEW,None,"Source service operator cannot be represented exactly.")
             elif x.protocol not in {"tcp","udp"}: add(x,"service",S.UNSUPPORTED,None,f"Protocol {x.protocol} is not supported.")
             elif x.source_ports: add(x,"service",S.MANUAL_REVIEW,None,"Source-port restrictions are not safely represented by this renderer.")
             elif not x.destination_ports: add(x,"service",S.MANUAL_REVIEW,None,"Destination port is required.")
             elif (asa or srx) and len(x.destination_ports)!=1: add(x,"service",S.MANUAL_REVIEW,None,f"{target_profile.os_name} bounded service generation requires one destination port expression.")
-            else: add(x,"service",S.SUPPORTED,{"protocol":x.protocol,"ports":x.destination_ports})
+            else: add(x,"service",S.SUPPORTED,{"protocol":x.protocol,"ports":x.destination_ports,"description":x.description})
         for x in cfg.service_groups:
+            if pan_same and (x.tags or x.vendor_extensions): add(x,"service_group",S.MANUAL_REVIEW,None,"Service-group tags or unsupported settings require manual review."); continue
             if (fortios or asa or srx) and targets[x.id]!=x.name: add(x,"service_group",S.MANUAL_REVIEW,None,f"{target_profile.os_name} service-group name requires an explicit engineer-confirmed mapping."); continue
-            missing=[m for m in x.members if m not in by_name]
-            if missing or x.id in cycles or srx and any(by_name.get(m) in cfg.service_groups for m in x.members): add(x,"service_group",S.MANUAL_REVIEW,None,"Nested, cyclic, or unresolved application-set dependency requires review." if srx else "Group dependency is unresolved or cyclic.")
-            else: add(x,"service_group",S.SUPPORTED,{"members":[targets[by_name[m].id] for m in x.members],"member_types":["group" if by_name[m] in cfg.service_groups else "object" for m in x.members]})
+            missing=[m for m in x.members if m not in service_by_name or service_by_name[m].id in non_renderable]
+            if missing or x.id in cycles or srx and any(service_by_name.get(m) in cfg.service_groups for m in x.members): add(x,"service_group",S.MANUAL_REVIEW,None,"Nested, cyclic, or unresolved application-set dependency requires review." if srx else "Group dependency is unresolved or cyclic.")
+            else: add(x,"service_group",S.SUPPORTED,{"members":[targets[service_by_name[m].id] for m in x.members],"member_types":["group" if service_by_name[m] in cfg.service_groups else "object" for m in x.members],"description":x.description})
         policy_positions=[x.position for x in cfg.security_policies]
         duplicate_positions=len(policy_positions)!=len(set(policy_positions))
         for x in sorted(cfg.security_policies,key=lambda p:p.position):
             if asa: add(x,"security_policy",S.MANUAL_REVIEW,None,"ASA ACL name, binding direction, interface nameif, and placement require explicit target context."); continue
             if srx:
-                topology=x.vendor_extensions.get("topology",{}); required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps]; refs=x.sources+x.destinations+x.services
-                missing=[r for r in refs if r.lower()!="any" and r not in by_name]
-                dependencies=[by_name[r].id for r in refs if r in by_name]
+                topology=x.vendor_extensions.get("topology",{}); required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps or pan_same and next((zone.id for zone in cfg.zones if zone.name==z),None) in non_renderable]; address_refs=x.sources+x.destinations; service_refs=x.services
+                missing=[r for r in address_refs if r.lower()!="any" and r not in address_by_name]+[r for r in service_refs if r.lower()!="any" and r not in service_by_name]
+                dependencies=[address_by_name[r].id for r in address_refs if r in address_by_name]+[service_by_name[r].id for r in service_refs if r in service_by_name]
                 if targets[x.id]!=x.name: add(x,"security_policy",S.MANUAL_REVIEW,None,"Junos policy name requires an explicit engineer-confirmed mapping."); continue
                 if duplicate_positions: add(x,"security_policy",S.MANUAL_REVIEW,None,"Source effective policy order is ambiguous: duplicate positions."); continue
                 if x.vendor_extensions.get("manual_review") or x.vendor_extensions.get("security_profiles"): add(x,"security_policy",S.MANUAL_REVIEW,None,"Preserved advanced source policy semantics require review."); continue
@@ -95,14 +111,15 @@ class MigrationPlanner:
                 if len(x.source_zones)!=1 or len(x.destination_zones)!=1 or required: add(x,"security_policy",S.MANUAL_REVIEW,None,"One confirmed source-zone and destination-zone mapping is required.",required=required or ["target_zone_mapping"]); continue
                 if missing: add(x,"security_policy",S.MANUAL_REVIEW,None,f"Unresolved references: {', '.join(missing)}"); continue
                 if x.action not in {"allow","deny"}: add(x,"security_policy",S.UNSUPPORTED,None,f"Action {x.action} is not safely implemented."); continue
-                resolve=lambda values:["any" if v.lower()=="any" else targets[by_name[v].id] for v in values]
-                add(x,"security_policy",S.SUPPORTED,{"from":[zone_maps[x.source_zones[0]]],"to":[zone_maps[x.destination_zones[0]]],"source":resolve(x.sources),"destination":resolve(x.destinations),"service":resolve(x.services),"action":x.action,"position":x.position,"dependency_ids":dependencies},topology=topology); continue
+                resolve_address=lambda values:["any" if v.lower()=="any" else targets[address_by_name[v].id] for v in values]; resolve_service=lambda values:["any" if v.lower()=="any" else targets[service_by_name[v].id] for v in values]
+                add(x,"security_policy",S.SUPPORTED,{"from":[zone_maps[x.source_zones[0]]],"to":[zone_maps[x.destination_zones[0]]],"source":resolve_address(x.sources),"destination":resolve_address(x.destinations),"service":resolve_service(x.services),"action":x.action,"position":x.position,"dependency_ids":dependencies},topology=topology); continue
             if fortios and targets[x.id]!=x.name: add(x,"security_policy",S.MANUAL_REVIEW,None,"FortiOS policy name requires an explicit engineer-confirmed mapping."); continue
             topology=x.vendor_extensions.get("topology",{})
-            required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps]
-            refs=x.sources+x.destinations+x.services; missing=[r for r in refs if r.lower() not in {"any","any4","any6","application-default","service-http","service-https"} and r not in by_name]
+            required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps or pan_same and next((zone.id for zone in cfg.zones if zone.name==z),None) in non_renderable]
+            address_refs=x.sources+x.destinations; service_refs=x.services; refs=address_refs+service_refs; missing=[r for r in address_refs if r.lower() not in {"any","any4","any6"} and (r not in address_by_name or address_by_name[r].id in non_renderable)]+[r for r in service_refs if r.lower() not in {"any","application-default","service-http","service-https"} and (r not in service_by_name or service_by_name[r].id in non_renderable)]
             profiles=x.vendor_extensions.get("security_profiles",[])
             if duplicate_positions: add(x,"security_policy",S.MANUAL_REVIEW,None,"Source effective policy order is ambiguous: duplicate positions.",topology=topology)
+            elif pan_same and x.tags: add(x,"security_policy",S.MANUAL_REVIEW,None,"Security rule tags require manual review.",topology=topology)
             elif x.vendor_extensions.get("manual_review"): add(x,"security_policy",S.MANUAL_REVIEW,None,x.vendor_extensions["manual_review"],topology=topology)
             elif profiles: add(x,"security_policy",S.MANUAL_REVIEW,None,f"Security profiles are preserved for review and not migrated: {', '.join(profiles)}",required=required,topology=topology)
             elif x.vendor_extensions.get("attached") is False: add(x,"security_policy",S.MANUAL_REVIEW,None,"ACL is not attached and is not proven active.",topology=topology)
@@ -111,24 +128,40 @@ class MigrationPlanner:
             elif not x.source_zones or not x.destination_zones: add(x,"security_policy",S.MANUAL_REVIEW,None,topology.get("reason") or "Normalized rule has no explicit source/destination zones.",required=["source_zone","destination_zone"],topology=topology)
             elif required: add(x,"security_policy",S.MANUAL_REVIEW,None,"Confirmed zone mapping is required.",required=required,topology=topology)
             elif x.action not in {"allow","deny"}: add(x,"security_policy",S.UNSUPPORTED,None,f"Action {x.action} is not safely implemented.")
-            elif x.log_start or x.log_end: add(x,"security_policy",S.MANUAL_REVIEW,None,"Logging semantics are preserved for review and not invented on the target.",topology=topology)
+            elif (x.log_start or x.log_end) and not pan_same: add(x,"security_policy",S.MANUAL_REVIEW,None,"Logging semantics are preserved for review and not invented on the target.",topology=topology)
             elif not fortios and not mappings.security_rule_placement: add(x,"security_policy",S.MANUAL_REVIEW,None,"Explicit target security-rule placement is required.",topology=topology)
             elif target_profile and not fortios and target_profile.version_family!="11.1": add(x,"security_policy",S.MANUAL_REVIEW,None,"Security policy generation is limited to PAN-OS 11.1.",topology=topology)
             else:
                 if fortios and any(v.lower() in {"any","any4","any6","application-default","service-http","service-https"} for v in refs):
                     add(x,"security_policy",S.MANUAL_REVIEW,None,"Built-in address and service mappings require explicit evidence.",topology=topology); continue
-                resolve=lambda values:[v if v.lower() in {"any","application-default","service-http","service-https"} else targets[by_name[v].id] for v in values]
-                add(x,"security_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve(x.sources),"destination":resolve(x.destinations),"service":resolve(x.services),"action":x.action,"enabled":x.enabled,"description":x.description,"log_start":x.log_start,"log_end":x.log_end,"position":x.position},topology=topology)
+                resolve_address=lambda values:[v if v.lower() in {"any","any4","any6"} else targets[address_by_name[v].id] for v in values]; resolve_service=lambda values:[v if v.lower() in {"any","application-default","service-http","service-https"} else targets[service_by_name[v].id] for v in values]
+                add(x,"security_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve_address(x.sources),"destination":resolve_address(x.destinations),"service":resolve_service(x.services),"application":x.applications,"action":x.action,"enabled":x.enabled,"description":x.description,"log_start":x.log_start,"log_end":x.log_end,"position":x.position},topology=topology)
+        nat_positions=[x.position for x in cfg.nat_policies if x.position is not None]
+        duplicate_nat_positions=len(nat_positions)!=len(set(nat_positions))
         for x in cfg.nat_policies:
             if asa: add(x,"nat_policy",S.MANUAL_REVIEW,None,"ASA NAT generation is disabled."); continue
             if srx: add(x,"nat_policy",S.MANUAL_REVIEW,None,"SRX NAT target generation is outside Q10 bounded scope."); continue
             if fortios:
                 add(x,"nat_policy",S.MANUAL_REVIEW,None,"FortiOS NAT and VIP generation is disabled for Q8."); continue
-            required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps]
+            required=[f"zone:{z}" for z in x.source_zones+x.destination_zones if z not in zone_maps or pan_same and next((zone.id for zone in cfg.zones if zone.name==z),None) in non_renderable]
             refs=x.original_source+x.original_destination+x.translated_source+x.translated_destination
-            missing=[r for r in refs if r not in {"any","interface"} and r not in by_name and not self._ip_value(r)]
+            service_refs=x.original_service+x.translated_service; missing=[r for r in refs if r not in {"any","interface"} and not self._ip_value(r) and (r not in address_by_name or address_by_name[r].id in non_renderable)]+[r for r in service_refs if r!="any" and (r not in service_by_name or service_by_name[r].id in non_renderable)]
             subtype=("interface_address_pat" if x.type=="dynamic_pat" and x.translation_target=="INTERFACE_ADDRESS" or x.type=="dynamic_pat" and x.translated_source==["interface"] else "destination_port_translation" if x.type=="destination_nat" and x.translated_service else "destination_static_nat" if x.type=="destination_nat" else "dynamic_ip_and_port" if x.type=="dynamic_pat" else x.type)
             route_outcome=next((o for o in mappings.nat_route_outcomes if o.nat_rule==x.id),None)
+            if pan_same:
+                if duplicate_nat_positions: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Source effective NAT order is ambiguous: duplicate positions."); continue
+                if x.tags: add(x,"nat_policy",S.MANUAL_REVIEW,None,"NAT rule tags require manual review."); continue
+                if x.vendor_extensions.get("manual_review"): add(x,"nat_policy",S.MANUAL_REVIEW,None,x.vendor_extensions["manual_review"]); continue
+                if x.translated_port: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Destination translated port is preserved but not rendered."); continue
+                if not mappings.nat_rule_placement: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Explicit target NAT-rule placement is required."); continue
+                if missing: add(x,"nat_policy",S.MANUAL_REVIEW,None,f"Unresolved NAT references: {', '.join(missing)}"); continue
+                if x.type not in {"interface_address_pat","dynamic_ip_and_port","destination_static_nat","source_destination_nat"}: add(x,"nat_policy",S.MANUAL_REVIEW,None,f"NAT subtype {x.type} is preserved but not rendered."); continue
+                if x.type in {"dynamic_ip_and_port","source_destination_nat"} and not x.translated_source: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Dynamic source translation requires an explicit translated address pool."); continue
+                if x.type in {"destination_static_nat","source_destination_nat"} and not x.translated_destination: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Destination translation requires an explicit translated address."); continue
+                if x.type=="interface_address_pat" and (x.translation_target not in interface_by_name or interface_by_name[x.translation_target].id in non_renderable): add(x,"nat_policy",S.MANUAL_REVIEW,None,"Interface-address DIPP requires a safely renderable source interface."); continue
+                resolve_address=lambda values:[targets[address_by_name[v].id] if v in address_by_name else v for v in values]; resolve_service=lambda values:[targets[service_by_name[v].id] if v in service_by_name else v for v in values]
+                add(x,"nat_policy",S.SUPPORTED,{"from":x.source_zones,"to":x.destination_zones,"source":resolve_address(x.original_source),"destination":resolve_address(x.original_destination),"service":resolve_service(x.original_service)[0] if x.original_service else "any","type":x.type,"translated_source":resolve_address(x.translated_source),"translated_destination":resolve_address(x.translated_destination),"translation_target":x.translation_target,"enabled":x.enabled,"description":x.description,"position":x.position}); continue
+            if x.tags: add(x,"nat_policy",S.MANUAL_REVIEW,None,"NAT rule tags require manual review."); continue
             if x.vendor_extensions.get("manual_review"): add(x,"nat_policy",S.MANUAL_REVIEW,None,x.vendor_extensions["manual_review"])
             elif x.identity: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Identity NAT is preserved but not rendered.")
             elif subtype in {"twice_nat","identity_nat","central_nat","ip_pool_snat"}: add(x,"nat_policy",S.MANUAL_REVIEW,None,f"NAT subtype {subtype} is preserved but not rendered.")
@@ -139,8 +172,8 @@ class MigrationPlanner:
             elif missing: add(x,"nat_policy",S.MANUAL_REVIEW,None,f"Unresolved NAT references: {', '.join(missing)}")
             elif required: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Confirmed source and destination zone mappings are required.",required=required)
             else:
-                resolve=lambda values:[targets[by_name[v].id] if v in by_name else v for v in values]
-                add(x,"nat_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve(x.original_source or ["any"]),"destination":resolve(x.original_destination or ["any"]),"service":resolve(x.original_service)[0] if x.original_service else "any","type":x.type,"translated_source":resolve(x.translated_source),"translated_destination":resolve(x.translated_destination),"translated_service":resolve(x.translated_service)[0] if x.translated_service else None,"translation_target":x.translation_target,"position":x.position})
+                resolve_address=lambda values:[targets[address_by_name[v].id] if v in address_by_name else v for v in values]; resolve_service=lambda values:[targets[service_by_name[v].id] if v in service_by_name else v for v in values]
+                add(x,"nat_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve_address(x.original_source or ["any"]),"destination":resolve_address(x.original_destination or ["any"]),"service":resolve_service(x.original_service)[0] if x.original_service else "any","type":x.type,"translated_source":resolve_address(x.translated_source),"translated_destination":resolve_address(x.translated_destination),"translated_service":resolve_service(x.translated_service)[0] if x.translated_service else None,"translation_target":x.translation_target,"position":x.position})
         for x in cfg.static_routes:
             if asa: add(x,"route",S.MANUAL_REVIEW,None,"ASA route interface nameif and routing context require explicit target context."); continue
             if srx and (x.interface or x.distance is not None or x.metric is not None or x.vendor_extensions): add(x,"route",S.MANUAL_REVIEW,None,"Only simple global IPv4 destination and next-hop routes are generated for SRX.",required=["target_route_context"]); continue
@@ -151,9 +184,11 @@ class MigrationPlanner:
             except ValueError: add(x,"route",S.MANUAL_REVIEW,None,"Invalid route destination or next hop."); continue
             if fortios and (x.distance is not None or x.metric is not None): add(x,"route",S.MANUAL_REVIEW,None,"Cross-vendor route distance or metric is not mapped."); continue
             mapping=interface_maps.get(x.interface)
-            if x.interface and (not mapping or not mapping.target_interface): add(x,"route",S.MANUAL_REVIEW,None,"Confirmed target interface mapping is required.",required=[f"interface:{x.interface}"])
+            if pan_same and not x.virtual_router: add(x,"route",S.MANUAL_REVIEW,None,"Static route virtual-router context is required.")
+            elif pan_same and x.interface and next((i.id for i in cfg.interfaces if i.name==x.interface),None) in non_renderable: add(x,"route",S.MANUAL_REVIEW,None,"Route interface is not safely renderable.",required=[f"interface:{x.interface}"])
+            elif x.interface and not pan_same and (not mapping or not mapping.target_interface): add(x,"route",S.MANUAL_REVIEW,None,"Confirmed target interface mapping is required.",required=[f"interface:{x.interface}"])
             elif fortios and not x.interface: add(x,"route",S.MANUAL_REVIEW,None,"Confirmed target route interface is required.",required=["route_interface"])
-            else: add(x,"route",S.SUPPORTED,{"destination":x.destination,"next_hop":x.next_hop,"interface":mapping.target_interface if mapping else None,"virtual_router":mappings.virtual_router,"metric":x.metric})
+            else: add(x,"route",S.SUPPORTED,{"destination":x.destination,"next_hop":x.next_hop,"interface":x.interface if pan_same else mapping.target_interface if mapping else None,"virtual_router":x.virtual_router if pan_same else mappings.virtual_router,"metric":x.metric,"distance":x.distance,"enabled":x.enabled})
         for x in cfg.vpn_objects: add(x,"vpn",S.UNSUPPORTED,None,"VPN migration is outside Phase F scope.")
         advisories=[f"Analysis: {x.description}" for x in analysis.findings if x.type=="POTENTIAL_SHADOWING"]
         if mappings.security_rule_placement and mappings.security_rule_placement.anchor_rule: advisories.append(f"External target dependency: confirm security rule anchor {mappings.security_rule_placement.anchor_rule!r} exists before executing ordering actions.")
@@ -175,5 +210,5 @@ class MigrationPlanner:
 
     @staticmethod
     def _ip_value(value):
-        try: ipaddress.ip_address(value); return True
+        try: ipaddress.ip_network(value,strict=False); return True
         except ValueError: return False

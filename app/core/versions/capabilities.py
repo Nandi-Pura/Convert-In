@@ -2,11 +2,12 @@ from .models import CapabilityStatus
 
 VERIFIED={CapabilityStatus.DOCUMENTED_IMPLEMENTED_TESTED}
 EMITTED_CAPABILITIES=("address","address_group","service","service_group","security_policy","route")
+KNOWN_EMITTED_CAPABILITIES=EMITTED_CAPABILITIES+("interface","zone","interface_address_pat","dynamic_ip_and_port","destination_static_nat","source_destination_nat")
 def capability_verified(profile,name):
     return bool(profile and name in profile.capabilities and profile.capabilities[name].status in VERIFIED and profile.capabilities[name].documentation_refs and profile.capabilities[name].renderer_support and profile.capabilities[name].test_refs)
 
 def emitted_capability_fully_evidenced(source_profile,target_profile,name):
-    return name in EMITTED_CAPABILITIES and capability_verified(source_profile,name) and capability_verified(target_profile,name) and source_profile.tested and target_profile.tested
+    return name in KNOWN_EMITTED_CAPABILITIES and capability_verified(source_profile,name) and capability_verified(target_profile,name) and source_profile.tested and target_profile.tested
 
 def assert_all_emitted_capabilities_fully_evidenced(source_profile,target_profile,names=EMITTED_CAPABILITIES):
     missing=[name for name in names if not emitted_capability_fully_evidenced(source_profile,target_profile,name)]

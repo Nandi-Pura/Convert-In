@@ -236,5 +236,29 @@
     "official_url": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-help/network/network-virtual-routers/static-routes",
     "verified_at": "2026-09-18",
     "notes": "Target semantic basis for the bounded emitted route fields."
+  },
+  {
+    "id": "PANOS-11.1-LAYER3-INTERFACES",
+    "vendor": "paloalto",
+    "product": "PAN-OS",
+    "version_family": "11.1",
+    "document_type": "CONFIGURATION_GUIDE",
+    "title": "Configure Layer 3 Interfaces",
+    "topic": "Ethernet Layer3 interfaces, subinterfaces, static IPv4 addresses, comments, and zone association",
+    "official_url": "https://docs.paloaltonetworks.com/ngfw/networking/configure-interfaces/layer-3-interfaces/configure-layer-3-interfaces",
+    "verified_at": "2026-09-30",
+    "notes": "PAN-OS 11.1 scope; only bounded Ethernet Layer3 fields are implemented."
+  },
+  {
+    "id": "PANOS-11.1-LAYER3-ZONES",
+    "vendor": "paloalto",
+    "product": "PAN-OS",
+    "version_family": "11.1",
+    "document_type": "CONFIGURATION_GUIDE",
+    "title": "Building Blocks of Security Zones",
+    "topic": "Layer3 zone type and Ethernet interface/subinterface membership",
+    "official_url": "https://docs.paloaltonetworks.com/ngfw/help/11-1/network/network-zones/building-blocks-of-security-zones",
+    "verified_at": "2026-09-30",
+    "notes": "Only local-VSYS Layer3 membership is implemented."
   }
 ]

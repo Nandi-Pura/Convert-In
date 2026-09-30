@@ -29,8 +29,9 @@ def test_negative_semantics_names_and_quoting():
     assert any(x.collision for x in report.names)
     assert not any(" bad " in x or " rules unknown " in x for x in lines)
     assert report.unsupported==2
+    assert quote('a "b" \\ c') == '"a \\"b\\" \\\\ c"'
     import pytest
-    with pytest.raises(ValueError): quote('a "b" \\ c')
+    with pytest.raises(ValueError): quote("line1\nset rule evil")
 
 def test_migration_api_smoke_and_downloads():
     client=TestClient(app); source=Path("examples/asa/basic.cfg").read_text()

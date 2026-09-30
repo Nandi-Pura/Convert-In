@@ -141,6 +141,7 @@ class Interface(Entity):
     enabled: bool = True
     vlan: int | None = None
     parent: str | None = None
+    virtual_router: str | None = None
 
 
 class Zone(Entity):
@@ -156,6 +157,7 @@ class SecurityRule(Entity):
     sources: list[str] = Field(default_factory=lambda: ["any"])
     destinations: list[str] = Field(default_factory=lambda: ["any"])
     services: list[str] = Field(default_factory=lambda: ["any"])
+    applications: list[str] = Field(default_factory=lambda: ["any"])
     action: str = "unknown"
     enabled: bool = True
     log_start: bool = False
@@ -186,8 +188,10 @@ class NatRule(Entity):
     translated_destination: list[str] = Field(default_factory=list)
     original_service: list[str] = Field(default_factory=list)
     translated_service: list[str] = Field(default_factory=list)
+    translated_port: str | None = None
     translation_target: str | None = None
     identity: bool = False
+    enabled: bool = True
     status: str = "MANUAL_REVIEW"
 
 
@@ -198,6 +202,7 @@ class StaticRoute(Entity):
     metric: int | None = None
     distance: int | None = None
     enabled: bool = True
+    virtual_router: str | None = None
 
 
 class VpnObject(Entity):
@@ -295,13 +300,13 @@ class FirewallConfig(BaseModel):
                     item=SourceExtractionItem(id=stable(kind, entity.name, location), source_vendor=vendor, source_version=version, source_type=kind, source_name=entity.name, source_location=location, outcome=ExtractionOutcome.RECOVERED if recovered else ExtractionOutcome.NORMALIZED, normalized_entity_ids=[entity.id], reason="Parser recovered an incomplete construct." if recovered else None)
                     by_location[location]=item; items.append(item)
         for entry in self.unparsed_constructs:
-            location = f"line {entry.line_number}" if entry.line_number else entry.section or "unknown"; kind = entry.category or entry.section or "other/unparsed"; name = entry.section or "construct"
+            location = entry.source_extraction_id or (f"line {entry.line_number}" if entry.line_number else entry.section or "unknown"); kind = entry.category or entry.section or "other/unparsed"; name = entry.section or "construct"
             if location in by_location and entry.reason == "Unsupported field preserved":
                 by_location[location].outcome=ExtractionOutcome.RECOVERED; by_location[location].reason="Normalized with unsupported source fields preserved for review."
                 entry.source_extraction_id=by_location[location].id; entry.source_version=version; entry.category=kind
                 continue
             outcome = ExtractionOutcome.SOURCE_UNSUPPORTED if entry.unsupported else ExtractionOutcome.UNPARSED
-            item_id = stable(kind, name, location); entry.source_extraction_id = item_id; entry.source_version = version; entry.category = kind
+            item_id = entry.source_extraction_id or stable(kind, name, location); entry.source_extraction_id = item_id; entry.source_version = version; entry.category = kind
             items.append(SourceExtractionItem(id=item_id, source_vendor=vendor, source_version=version, source_type=kind, source_name=name, source_location=location, outcome=outcome, reason=entry.reason))
         counts = {outcome: sum(x.outcome == outcome for x in items) for outcome in ExtractionOutcome}
         semantic_total = counts[ExtractionOutcome.NORMALIZED] + counts[ExtractionOutcome.RECOVERED] + counts[ExtractionOutcome.UNPARSED] + counts[ExtractionOutcome.SOURCE_UNSUPPORTED]

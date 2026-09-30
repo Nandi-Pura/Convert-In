@@ -35,6 +35,7 @@ SUPPORTED_MIGRATION_PAIRS = {
     (Vendor.ASA, Vendor.PALO_ALTO): MigrationPair(CiscoAsaSourceAdapter, "PaloAltoRenderer", frozenset({"policy", "nat", "route"}), "asa-to-pan", frozenset({"asa-9.20","asa-9.22","asa-9.24"}), frozenset({"panos-11.1","panos-12.1"})),
     (Vendor.FORTIGATE, Vendor.PALO_ALTO): MigrationPair(FortiGateSourceAdapter, "PaloAltoRenderer", frozenset({"policy", "nat", "vip", "route"}), "fortigate-to-pan", frozenset({"fortios-7.4","fortios-7.6"}), frozenset({"panos-11.1","panos-12.1"})),
     (Vendor.JUNIPER_SRX, Vendor.PALO_ALTO): MigrationPair(JuniperSrxSourceAdapter,"PaloAltoRenderer",frozenset({"policy","nat","route"}),"srx-to-pan",frozenset({"junos-23.4R2"}),frozenset({"panos-11.1"})),
+    (Vendor.PALO_ALTO, Vendor.PALO_ALTO): MigrationPair(NormalizedSourceAdapter,"PaloAltoRenderer",frozenset({"address","address_group","service","service_group","interface_layer3","interface_layer3_subinterface","zone_layer3","static_route_ipv4","security_policy","nat:interface_address_pat","nat:dynamic_ip_and_port","nat:destination_static_nat","nat:source_destination_nat"}),"panos-to-panos-11.1",frozenset({"panos-11.1"}),frozenset({"panos-11.1"})),
 }
 
 SOURCE_ADAPTERS={Vendor.ASA:CiscoAsaSourceAdapter,Vendor.FORTIGATE:FortiGateSourceAdapter,Vendor.JUNIPER_SRX:JuniperSrxSourceAdapter,Vendor.PALO_ALTO:NormalizedSourceAdapter}

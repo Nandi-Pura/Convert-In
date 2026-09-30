@@ -1,0 +1,102 @@
+scope:
+  source_vendor: paloalto
+  target_vendor: paloalto
+  source_profile: panos-11.1
+  target_profile: panos-11.1
+  management_mode: LOCAL_FIREWALL
+  output: PAN-OS set commands
+  deployment: unsupported
+
+capabilities:
+  address_ipv4:
+    parse: supported
+    analyze: supported
+    render: supported
+    limitations: [IPv4 host, CIDR, range, and FQDN only; tags require manual review]
+    evidence: [PANOS-11.1-ADDRESSES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  address_group_static:
+    parse: supported
+    analyze: reference and cycle validation
+    render: supported
+    limitations: [dynamic groups require manual review]
+    evidence: [PANOS-11.1-ADDRESS-GROUPS, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  service_tcp_udp:
+    parse: supported
+    analyze: port validation
+    render: supported
+    limitations: [source-port restrictions and unsupported protocols require manual review]
+    evidence: [PANOS-11.1-SERVICES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  service_group_static:
+    parse: supported
+    analyze: reference and cycle validation
+    render: supported
+    limitations: []
+    evidence: [PANOS-11.1-SERVICE-GROUPS, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  interface_layer3:
+    parse: supported
+    analyze: reference validation
+    render: supported
+    limitations: [Ethernet, static IPv4, enabled interfaces, and bounded comments only]
+    evidence: [PANOS-11.1-LAYER3-INTERFACES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  interface_layer3_subinterface:
+    parse: supported
+    analyze: parent and explicit VLAN validation
+    render: supported
+    limitations: [missing VLAN and unsupported child settings require manual review]
+    evidence: [PANOS-11.1-LAYER3-INTERFACES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  zone_layer3:
+    parse: supported
+    analyze: interface reference validation
+    render: supported
+    limitations: [User-ID, protection, Layer2, virtual-wire, tunnel, and external zone semantics require manual review]
+    evidence: [PANOS-11.1-LAYER3-ZONES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  static_route_ipv4:
+    parse: supported
+    analyze: destination, IP next-hop, interface, and virtual-router validation
+    render: supported
+    limitations: [IP next-hop only; advanced routing engine and other next-hop types require manual review]
+    evidence: [PANOS-11.1-STATIC-ROUTES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  security_policy:
+    parse: supported
+    analyze: ordered reference validation
+    render: supported
+    limitations: [local rulebase only; profile settings and tags require manual review]
+    evidence: [PANOS-11.1-SECURITY-POLICY, PANOS-11.1-CONFIG-API-ACTIONS]
+  nat_interface_address_dipp:
+    parse: supported
+    analyze: ordered reference and interface validation
+    render: supported
+    limitations: [explicit placement required; advanced DIPP options require manual review]
+    evidence: [PANOS-11.1-NAT-POLICY-RULES, PANOS-11.1-SOURCE-DIPP, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  nat_translated_address_dipp:
+    parse: supported
+    analyze: ordered reference validation
+    render: supported
+    limitations: [explicit placement required; fallback and advanced pool behavior require manual review]
+    evidence: [PANOS-11.1-NAT-POLICY-RULES, PANOS-11.1-SOURCE-DIPP, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  nat_destination_static:
+    parse: supported
+    analyze: ordered reference validation
+    render: supported
+    limitations: [translated port remains manual review]
+    evidence: [PANOS-11.1-NAT-POLICY-RULES, PANOS-11.1-DNAT-ONE-TO-ONE, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  nat_source_destination:
+    parse: supported
+    analyze: ordered reference validation
+    render: supported
+    limitations: [only DIPP plus static destination translation; translated port and advanced options require manual review]
+    evidence: [PANOS-11.1-NAT-POLICY-RULES, PANOS-11.1-SOURCE-DIPP, PANOS-11.1-DNAT-ONE-TO-ONE, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+
+unsupported_scopes:
+  - multiple VSYS without explicit selection
+  - shared-object inheritance
+  - Panorama device groups, templates, pre-rulebase, and post-rulebase
+  - dynamic address groups
+  - security profile settings
+  - non-Ethernet or non-Layer3 interfaces
+  - IPv6
+  - advanced routing engine and non-IP static-route next hops
+  - NAT64, DNS rewrite, static-IP source NAT, bidirectional NAT, DIPP fallback, and destination port translation
+
+tests:
+  - tests/test_paloalto_migration_pipeline.py

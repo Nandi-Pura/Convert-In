@@ -6,6 +6,6 @@
   "group_names": ["WEB_SERVERS"],
   "service_names": ["HTTPS"],
   "policy_actions": ["allow"],
-  "nat_types": ["destination_nat"],
+  "nat_types": ["destination_static_nat"],
   "route_destinations": ["0.0.0.0/0"]
 }

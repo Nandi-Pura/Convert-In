@@ -222,7 +222,10 @@ class ReferenceIntegrityValidator:
     @staticmethod
     def _is_literal(name, expected):
         if not set(expected) & {"address", "address_group"}: return False
-        try: ipaddress.ip_address(name); return True
+        try:
+            if "-" in name:
+                start,end=(ipaddress.ip_address(value) for value in name.split("-",1)); return start.version==end.version and int(start)<=int(end)
+            ipaddress.ip_network(name,strict=False); return True
         except ValueError: return False
 
     @staticmethod
