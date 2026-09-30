@@ -1,0 +1,59 @@
+vendor: Palo Alto Networks
+domain: Firewall
+verified_at: 2026-09-30
+evidence_granularity:
+  identity: exact hardware model
+  compatibility: release train unless an exact first-supported release is listed
+  conversion: unchanged; catalog and platform verification do not enable parser or renderer coverage
+hardware_families:
+  PA-400 Series: [PA-410, PA-415, PA-415-5G, PA-440, PA-445, PA-450, PA-455, PA-455-5G, PA-460]
+  PA-800 Series: [PA-820, PA-850]
+  PA-1400 Series: [PA-1410, PA-1420]
+  PA-3200 Series: [PA-3220, PA-3250, PA-3260]
+  PA-3400 Series: [PA-3410, PA-3420, PA-3430, PA-3440]
+  PA-5200 Series: [PA-5220, PA-5250, PA-5260, PA-5280]
+  PA-5400 Series: [PA-5410, PA-5420, PA-5430, PA-5440, PA-5445, PA-5450]
+release_trains: ["10.1", "10.2", "11.0", "11.1", "11.2", "12.1", "12.2"]
+first_supported_boundaries:
+  PA-410: "10.1.2"
+  PA-415: "11.0"
+  PA-415-5G: "11.1"
+  PA-440: "10.1.0"
+  PA-445: "11.0"
+  PA-450: "10.1.0"
+  PA-455: "11.1"
+  PA-455-5G: "11.2.3"
+  PA-460: "10.1.0"
+  PA-820: "8.0"
+  PA-850: "8.0"
+  PA-1410: "11.0"
+  PA-1420: "11.0"
+  PA-3220: "8.1"
+  PA-3250: "8.1"
+  PA-3260: "8.1"
+  PA-3410: "10.2"
+  PA-3420: "10.2"
+  PA-3430: "10.2"
+  PA-3440: "10.2"
+  PA-5220: "8.0"
+  PA-5250: "8.0"
+  PA-5260: "8.0"
+  PA-5280: "8.1"
+  PA-5410: "10.2.0"
+  PA-5420: "10.2.0"
+  PA-5430: "10.2.0"
+  PA-5440: "11.0.0"
+  PA-5445: "11.1.0"
+  PA-5450: "10.1.0"
+negative_evidence:
+  policy: A dash in the current official compatibility matrix is explicit UNSUPPORTED evidence. Other missing combinations remain VERSION_NOT_VERIFIED.
+  panos_12_1_floor: "12.1.2"
+official_sources:
+  - https://docs.paloaltonetworks.com/compatibility-matrix/reference/supported-os-releases-by-model/palo-alto-networks-next-gen-firewalls
+  - https://docs.paloaltonetworks.com/hardware/pa-400-hardware-reference/pa-400-firewall-overview
+  - https://docs.paloaltonetworks.com/hardware/pa-800-hardware-reference/pa-800-firewall-overview
+  - https://docs.paloaltonetworks.com/hardware/pa-1400-hardware-reference/pa-1400-series-overview
+  - https://docs.paloaltonetworks.com/hardware/pa-3200-hardware-reference/pa-3220-series-overview
+  - https://docs.paloaltonetworks.com/hardware/pa-3400-hardware-reference/pa-3400-series-overview
+  - https://docs.paloaltonetworks.com/hardware/pa-5200-hardware-reference/pa-5200-series-firewall-overview
+  - https://docs.paloaltonetworks.com/hardware/pa-5400-hardware-reference/pa-5400-series-firewall-overview

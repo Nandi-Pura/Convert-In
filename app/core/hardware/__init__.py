@@ -3,6 +3,7 @@ from .models import (
     HardwareSelection,
     HardwareSelectionStatus,
     HardwareSoftwareSupport,
+    SupportScope,
     SupportStatus,
 )
 from .registry import HARDWARE_PROFILES, hardware_registry_payload, validate_registry
@@ -10,7 +11,7 @@ from .resolver import detect_hardware, resolve_hardware, resolve_hardware_softwa
 
 __all__ = [
     "HARDWARE_PROFILES", "HardwareProfile", "HardwareSelection",
-    "HardwareSelectionStatus", "HardwareSoftwareSupport", "SupportStatus",
+    "HardwareSelectionStatus", "HardwareSoftwareSupport", "SupportScope", "SupportStatus",
     "detect_hardware", "hardware_registry_payload", "resolve_hardware",
     "resolve_hardware_software_support", "validate_registry",
 ]

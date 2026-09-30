@@ -123,6 +123,6 @@ def test_platform_registry_and_compatibility_api_expose_conservative_states():
 
     assert status("SWITCH", "CISCO", "cisco-c9300-48p", "switch-cisco-iosxe", "17.12.1") == "SUPPORTED"
     assert status("FIREWALL", "PALO_ALTO", "paloalto-pa5220", "firewall-paloalto-panos", "12.1.6") == "UNSUPPORTED"
-    assert status("FIREWALL", "PALO_ALTO", "paloalto-pa5410", "firewall-paloalto-panos", "12.1.6") == "VERSION_NOT_VERIFIED"
+    assert status("FIREWALL", "PALO_ALTO", "paloalto-pa5410", "firewall-paloalto-panos", "12.1.6") == "SUPPORTED"
     assert status("SWITCH", "CISCO", "missing-model", "switch-cisco-iosxe", "17.12.1") == "UNKNOWN_HARDWARE"
     assert status("SWITCH", "CISCO", "cisco-c9300-48p", "switch-cisco-iosxe", "17.12.99") == "UNKNOWN_SOFTWARE"

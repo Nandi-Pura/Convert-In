@@ -73,14 +73,15 @@ def platform_compatibility(request:PlatformCompatibilityRequest):
     from app.core.hardware.resolver import resolve_hardware_software_support
     hardware=next((item for item in HARDWARE_PROFILES if item.id==request.hardware_id),None)
     profile=platform_profile(request.profile_id)
-    if hardware is None:
-        support=resolve_hardware_software_support(request.hardware_id,profile.os_family if profile else "",request.os_version)
-    elif not profile or hardware.domain!=request.domain or hardware.vendor!=request.vendor or profile.domain!=request.domain or profile.vendor!=request.vendor:
-        support=resolve_hardware_software_support("",profile.os_family if profile else "",request.os_version)
+    selection_valid=bool(hardware and profile and hardware.domain==request.domain and hardware.vendor==request.vendor and profile.domain==request.domain and profile.vendor==request.vendor)
+    if not selection_valid:
+        support=resolve_hardware_software_support(request.hardware_id if hardware is None else "",profile.os_family if profile else "",request.os_version)
     else:
         support=resolve_hardware_software_support(hardware.id,profile.os_family,request.os_version)
     payload=hardware_registry_payload(); evidence=[payload["evidence"][reference] for reference in support.evidence_refs]
-    return {"status":support.status.value,"evidence_refs":list(support.evidence_refs),"evidence":evidence,"constraints":list(support.constraints),"convert_allowed":support.status==SupportStatus.SUPPORTED and bool(support.evidence_refs)}
+    platform_verified=support.status==SupportStatus.SUPPORTED and bool(support.evidence_refs)
+    conversion_supported=bool(selection_valid and profile.conversion_supported and request.os_version in profile.supported_versions)
+    return {"status":support.status.value,"support_scope":support.support_scope.value,"minimum_version":support.minimum_version,"evidence_refs":list(support.evidence_refs),"evidence":evidence,"constraints":list(support.constraints),"cataloged":selection_valid and support.status!=SupportStatus.UNKNOWN_SOFTWARE,"platform_verified":platform_verified,"conversion_supported":conversion_supported,"convert_allowed":platform_verified and conversion_supported}
 
 class WorkbenchSource(BaseModel):
     source_text:str
@@ -115,7 +116,9 @@ def validate_platform_context(source:WorkbenchSource):
             raise HTTPException(422,f"Invalid {side} platform selection.")
         support=resolve_hardware_software_support(hardware.id,profile.os_family,version)
         if support.status!=SupportStatus.SUPPORTED or not support.evidence_refs:
-            raise HTTPException(422,f"{support.status.value}: {side} hardware/OS pair requires exact-version evidence.")
+            raise HTTPException(422,f"{support.status.value}: {side} hardware/OS pair requires documented compatibility evidence.")
+        if version not in profile.supported_versions:
+            raise HTTPException(422,f"CONVERSION_NOT_SUPPORTED: {side} platform is cataloged and verified but outside ConfigMorph conversion coverage.")
 
 def _platform_context_result(source:WorkbenchSource):
     if source.migration_context is None:return None

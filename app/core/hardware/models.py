@@ -13,6 +13,11 @@ class SupportStatus(StrEnum):
     UNKNOWN_SOFTWARE = "UNKNOWN_SOFTWARE"
 
 
+class SupportScope(StrEnum):
+    RELEASE_TRAIN = "RELEASE_TRAIN"
+    EXACT_VERSION = "EXACT_VERSION"
+
+
 class HardwareSelectionStatus(StrEnum):
     AUTO_DETECTED = "AUTO_DETECTED"
     MANUAL = "MANUAL"
@@ -48,3 +53,5 @@ class HardwareSoftwareSupport:
     status: SupportStatus = SupportStatus.VERSION_NOT_VERIFIED
     evidence_refs: tuple[str, ...] = ()
     constraints: tuple[str, ...] = ()
+    support_scope: SupportScope = SupportScope.EXACT_VERSION
+    minimum_version: str | None = None
