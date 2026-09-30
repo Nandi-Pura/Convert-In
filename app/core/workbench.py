@@ -56,8 +56,8 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         source_entities={x.id:x for xs in (cfg.vlans,cfg.ports,cfg.lags,cfg.svis) for x in xs};entities=[]
         for item in cp2:
             emitted=commands[item.entity_id];ready=bool(emitted) and item.status in {"EXACT","SUPPORTED"};status="READY" if ready else "BLOCKED" if item.entity_id in integrity.blocked_entity_ids else "REVIEW REQUIRED";entity=source_entities[item.entity_id]
-            entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons or (["Intent preserved"] if ready else ["No generated target config"]),commands=emitted))
-        result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,candidate,lint_config(cfg,integrity)); result["semantic_diff"]=_workbench_diff(cfg,cp2,profile,target_profile,source_version,target_version,mappings); return result
+            entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons or (["Intent preserved"] if ready else ["No generated target config"]),commands=emitted,evidence_ids=item.documentation_refs))
+        result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,candidate,lint_config(cfg,integrity)); return _with_semantic(result,_workbench_diff(cfg,cp2,profile,target_profile,source_version,target_version,mappings))
     if isinstance(cfg,RouterConfig) and mode==WorkbenchMode.CONVERT:
         integrity=RouterReferenceIntegrityValidator().validate(cfg); cp2=RouterCompatibilityEvaluator().evaluate(cfg,profile,target_profile,RouterMigrationMappings.model_validate(mappings or {}),integrity)
         renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version); renderer=renderer_type(); candidate=renderer.render(cp2); commands=defaultdict(list)
@@ -66,9 +66,9 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         for item in cp2:
             emitted=commands[item.entity_id]; ready=bool(emitted) and item.status in {"EXACT","SUPPORTED"}
             status="READY" if ready else "BLOCKED" if item.status in {"UNSUPPORTED","VERSION_NOT_VERIFIED"} else "REVIEW REQUIRED"; entity=source_entities[item.entity_id]
-            entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons,commands=emitted))
+            entities.append(_row(entity,item.entity_type,_snippet(lines,entity),"\n".join(emitted) or "No generated target config",status,f"CP2: {item.status.value}",item.reasons,commands=emitted,evidence_ids=item.documentation_refs))
         header=[f"# Domain: {profile.domain.value}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} {target_version}"]
-        result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,"\n".join(header+candidate)+"\n" if candidate else None,lint_config(cfg,integrity)); result["semantic_diff"]=_workbench_diff(cfg,cp2,profile,target_profile,source_version,target_version,mappings); return result
+        result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(Counter(x.status.value for x in cp2)),entities,"\n".join(header+candidate)+"\n" if candidate else None,lint_config(cfg,integrity)); return _with_semantic(result,_workbench_diff(cfg,cp2,profile,target_profile,source_version,target_version,mappings))
     if mode==WorkbenchMode.ANALYZE:
         integrity=(RouterReferenceIntegrityValidator() if isinstance(cfg,RouterConfig) else ReferenceIntegrityValidator()).validate(cfg); findings=defaultdict(list)
         for finding in integrity.findings: findings[finding.source_entity_id].append(finding.reason+f" {finding.referenced_entity_name or ''}".rstrip())
@@ -94,10 +94,10 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         emitted=commands[item.entity_id]; ready=bool(emitted) and item.status in {"EXACT","SUPPORTED"} and not item.blocking
         status="READY" if ready else "BLOCKED" if item.status in {"UNSUPPORTED","VERSION_NOT_VERIFIED"} or item.related_cp1_findings else "REVIEW REQUIRED"
         detail=f"CP2: {item.status.value}"; reasons=item.reasons or (["Intent preserved"] if ready else ["No generated target config"])
-        entities.append(_row(source_entities[item.entity_id],item.entity_type,_snippet(lines,source_entities[item.entity_id]),"\n".join(emitted) or "No generated target config",status,detail,reasons,names.get(item.entity_id),emitted))
+        entities.append(_row(source_entities[item.entity_id],item.entity_type,_snippet(lines,source_entities[item.entity_id]),"\n".join(emitted) or "No generated target config",status,detail,reasons,names.get(item.entity_id),emitted,item.documentation_refs))
     cp2=Counter(x.status.value for x in plan.compatibility)
     header=["# ConfigMorph","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Domain: {profile.domain.value.title()}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} / {target_profile.os_family} {target_version}","#","# Application-level validation only","# No device deployment performed",f"# CP0: {cfg.extraction_coverage.normalized} normalized; {cfg.extraction_coverage.recovered} recovered; {cfg.extraction_coverage.unparsed} unparsed; {cfg.extraction_coverage.unsupported} source unsupported",f"# CP1: {integrity.blocking_findings} blocking findings",f"# CP2: {dict(cp2)}",f"# Conversion: {len(set(c.entity_id for c in renderer.commands))} generated; {sum(v for k,v in cp2.items() if k in {'MANUAL_REVIEW','PARTIAL'})} manual review; {cp2.get('UNSUPPORTED',0)} unsupported; {cp2.get('VERSION_NOT_VERIFIED',0)} version not verified",""]
-    result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(header+candidate)+"\n",lint_config(cfg,integrity)); result["semantic_diff"]=_workbench_diff(cfg,plan.compatibility,profile,target_profile,source_version,target_version,mappings or plan.mappings.model_dump(mode="json")); return result
+    result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(header+candidate)+"\n",lint_config(cfg,integrity)); return _with_semantic(result,_workbench_diff(cfg,plan.compatibility,profile,target_profile,source_version,target_version,mappings or plan.mappings.model_dump(mode="json")))
 
 
 def _workbench_diff(cfg,cp2,source,target,source_version,target_version,mappings):
@@ -105,9 +105,9 @@ def _workbench_diff(cfg,cp2,source,target,source_version,target_version,mappings
     return build_semantic_diff(cfg,cp2,context(source,source_version),context(target,target_version),mappings=mappings or {}).model_dump(mode="json",by_alias=True)
 
 
-def _row(entity,kind,source,target,status,detail,findings,target_title=None,commands=None):
+def _row(entity,kind,source,target,status,detail,findings,target_title=None,commands=None,evidence_ids=None):
     line=getattr(getattr(entity,"provenance",None),"source_line",None)
-    return {"id":entity.id,"entity_type":TYPE_LABELS.get(kind,kind.replace("_"," ").title()),"source_title":entity.name,"source_snippet":source,"source_lines":[line] if line else [],"target_title":target_title,"target_snippet":target,"user_status":status,"detailed_status":detail,"copyable":status=="READY" and bool(commands),"findings":findings,"semantic_fields":[],"commands":commands or []}
+    return {"id":entity.id,"entity_type":TYPE_LABELS.get(kind,kind.replace("_"," ").title()),"source_title":entity.name,"source_snippet":source,"source_lines":[line] if line else [],"target_title":target_title,"target_snippet":target,"user_status":status,"detailed_status":detail,"copyable":status=="READY" and bool(commands),"findings":findings,"semantic_fields":[],"commands":commands or [],"evidence_ids":evidence_ids or []}
 
 
 def _result(mode,source,target,source_version,target_version,cp0,cp1,cp2,entities,candidate,lint_findings=None):
@@ -115,4 +115,16 @@ def _result(mode,source,target,source_version,target_version,cp0,cp1,cp2,entitie
     slug={"PAN_OS":"panos","FORTIGATE":"fortios","ASA":"asa","SRX":"srx"}.get(target.platform.value,target.platform.value.lower().replace("_","-"))
     extension="conf" if target.platform.value in {"FORTIGATE","ASA"} else "set"
     renderer_available=lookup_renderer(target.domain,target.vendor,target.platform,target_version) is not None
-    return {"mode":mode,"renderer_available":renderer_available,"source_profile":profile(source,source_version),"target_profile":profile(target,target_version),"cp0":cp0.model_dump(mode="json"),"cp1":cp1.model_dump(mode="json"),"cp2":cp2,"cp0_summary":cp0.model_dump(mode="json"),"cp1_summary":cp1.model_dump(mode="json"),"cp2_summary":cp2,"entities":entities,"lint_findings":[x.model_dump(mode="json") for x in (lint_findings or [])],"candidate":candidate,"candidate_filename":f"candidate-{slug}-{target_version}.{extension}" if candidate else None}
+    unsupported=cp2.get("UNSUPPORTED") if isinstance(cp2,dict) else None
+    summary={"added":None,"modified":None,"removed":None,"unsupported":unsupported,"needs_review":sum(x["user_status"]=="REVIEW REQUIRED" for x in entities)}
+    plan_entities=[{"entity_id":x["id"],"entity_type":x["entity_type"],"source_name":x["source_title"],"target_name":x.get("target_title"),"compatibility_status":x["detailed_status"].removeprefix("CP2: "),"render_eligible":x["copyable"],"blocking":x["user_status"]=="BLOCKED","reasons":x["findings"],"required_mappings":[],"dependencies":[]} for x in entities]
+    migration_plan={"summary":{"total_entities":len(entities),"render_eligible":sum(x["render_eligible"] for x in plan_entities),"blocked":sum(x["blocking"] for x in plan_entities)},"entities":plan_entities,"blocked":[{"entity_id":x["entity_id"],"reason":"; ".join(x["reasons"]) or x["compatibility_status"]} for x in plan_entities if x["blocking"]],"advisories":[]}
+    conversion_evidence=[{"entity_id":x["id"],"entity_type":x["entity_type"],"decision":x["detailed_status"],"reasons":x["findings"],"evidence_ids":x["evidence_ids"]} for x in entities]
+    return {"mode":mode,"renderer_available":renderer_available,"source_profile":profile(source,source_version),"target_profile":profile(target,target_version),"cp0":cp0.model_dump(mode="json"),"cp1":cp1.model_dump(mode="json"),"cp2":cp2,"cp0_summary":cp0.model_dump(mode="json"),"cp1_summary":cp1.model_dump(mode="json"),"cp2_summary":cp2,"entities":entities,"lint_findings":[x.model_dump(mode="json") for x in (lint_findings or [])],"candidate":candidate,"candidate_filename":f"candidate-{slug}-{target_version}.{extension}" if candidate else None,"conversion_summary":summary,"migration_plan":migration_plan,"conversion_evidence":conversion_evidence}
+
+
+def _with_semantic(result,semantic_diff):
+    result["semantic_diff"]=semantic_diff
+    counts=Counter(x.get("overall_classification") for x in semantic_diff.get("entities",[]))
+    result["conversion_summary"].update(modified=counts["CHANGED"],removed=counts["LOST"])
+    return result

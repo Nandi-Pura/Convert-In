@@ -38,7 +38,7 @@ def atomic_json(path:Path,value):
 
 def _fingerprint(manifest): return sha_bytes(canonical({k:v for k,v in manifest.items() if k!="fingerprint"}))
 def _state(manifest):
-    return sha_bytes(canonical({"source_sha256":manifest["source"]["sha256"],"source_profile_id":manifest["source"]["profile_id"],"source_exact_version":manifest["source"]["exact_version"],"target_profile_id":manifest["target"]["profile_id"],"target_exact_version":manifest["target"]["exact_version"],"mapping_fingerprint":manifest["state"]["mapping_revision"],"review_fingerprint":manifest["state"]["review_revision"],"schema_versions":manifest["ir"]["schema_versions"]}))
+    return sha_bytes(canonical({"source_sha256":manifest["source"]["sha256"],"source_domain":manifest["source"].get("domain"),"source_profile_id":manifest["source"]["profile_id"],"source_hardware_id":manifest["source"].get("hardware_id"),"source_exact_version":manifest["source"]["exact_version"],"target_domain":manifest["target"].get("domain"),"target_profile_id":manifest["target"]["profile_id"],"target_hardware_id":manifest["target"].get("hardware_id"),"target_exact_version":manifest["target"]["exact_version"],"mapping_fingerprint":manifest["state"]["mapping_revision"],"review_fingerprint":manifest["state"]["review_revision"],"schema_versions":manifest["ir"]["schema_versions"]}))
 
 def _revision(path:Path): return sha_bytes(path.read_bytes()) if path.is_file() else sha_bytes(b"{}")
 def _artifact(root:Path,name:str,state_revision:str):

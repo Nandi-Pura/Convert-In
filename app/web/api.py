@@ -16,6 +16,7 @@ from app.persistence.repositories import create_project
 from app.persistence.repositories.projects import get_project
 from app.core.migration import MigrationMappings, MigrationPlanner, build_plan_artifact, build_report, default_mappings, migration_pair, serialize_plan_artifact
 from app.core.renderers import PaloAltoRenderer
+from app.core.renderers.registry import lookup_renderer
 from app.core.migration.validation import validate_candidate
 from app.core.review import ReviewDecision,build_review,export_package,load_decisions,update_decision,validate_migration
 from app.core.versions import detect_version,resolve_context
@@ -35,6 +36,52 @@ from app.core import operations
 router = APIRouter(prefix="/api")
 executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix="convert")
 
+@router.get("/platform-registry")
+def platform_registry():
+    from app.core.hardware.registry import hardware_registry_payload
+    return {"domains": [{"id": "FIREWALL", "label": "Firewall"}, {"id": "SWITCH", "label": "Switching"}, {"id": "ROUTER", "label": "Routing"}], "software_profiles": profiles_payload(), **hardware_registry_payload()}
+
+class LegacyPlatformSelection(BaseModel):
+    domain:str
+    sourceVendor:str
+    sourceHardware:str
+    targetVendor:str
+    targetHardware:str
+
+class PlatformEndpoint(BaseModel):
+    vendor:str
+    hardware_id:str
+    profile_id:str
+    os_version:str
+
+class MigrationContext(BaseModel):
+    domain:str
+    source:PlatformEndpoint
+    target:PlatformEndpoint
+
+class PlatformCompatibilityRequest(BaseModel):
+    domain:str
+    vendor:str
+    hardware_id:str
+    profile_id:str
+    os_version:str
+
+@router.post("/platform-compatibility")
+def platform_compatibility(request:PlatformCompatibilityRequest):
+    from app.core.hardware.models import SupportStatus
+    from app.core.hardware.registry import HARDWARE_PROFILES, hardware_registry_payload
+    from app.core.hardware.resolver import resolve_hardware_software_support
+    hardware=next((item for item in HARDWARE_PROFILES if item.id==request.hardware_id),None)
+    profile=platform_profile(request.profile_id)
+    if hardware is None:
+        support=resolve_hardware_software_support(request.hardware_id,profile.os_family if profile else "",request.os_version)
+    elif not profile or hardware.domain!=request.domain or hardware.vendor!=request.vendor or profile.domain!=request.domain or profile.vendor!=request.vendor:
+        support=resolve_hardware_software_support("",profile.os_family if profile else "",request.os_version)
+    else:
+        support=resolve_hardware_software_support(hardware.id,profile.os_family,request.os_version)
+    payload=hardware_registry_payload(); evidence=[payload["evidence"][reference] for reference in support.evidence_refs]
+    return {"status":support.status.value,"evidence_refs":list(support.evidence_refs),"evidence":evidence,"constraints":list(support.constraints),"convert_allowed":support.status==SupportStatus.SUPPORTED and bool(support.evidence_refs)}
+
 class WorkbenchSource(BaseModel):
     source_text:str
     source_vendor:str="auto"
@@ -44,6 +91,51 @@ class WorkbenchSource(BaseModel):
     source_profile:str|None=None
     target_profile:str|None=None
     mappings:dict=Field(default_factory=dict)
+    platform_context:LegacyPlatformSelection|None=None
+    migration_context:MigrationContext|None=None
+
+def validate_platform_context(source:WorkbenchSource):
+    if source.migration_context is None and source.platform_context is None:return
+    from app.core.hardware.registry import HARDWARE_PROFILES
+    from app.core.hardware.resolver import resolve_hardware_software_support
+    from app.core.hardware.models import SupportStatus
+    selection=source.migration_context
+    for side in ("source","target"):
+        if selection:
+            endpoint=getattr(selection,side); profile=platform_profile(endpoint.profile_id); hardware_id=endpoint.hardware_id; vendor=endpoint.vendor; version=endpoint.os_version
+            if getattr(source,f"{side}_profile")!=endpoint.profile_id or getattr(source,f"{side}_version")!=endpoint.os_version:
+                raise HTTPException(422,f"Invalid {side} platform selection.")
+            if side=="source" and (not profile or not profile.source_vendor or source.source_vendor!=profile.source_vendor.value):
+                raise HTTPException(422,"Invalid source platform selection.")
+        else:
+            endpoint=None; profile=platform_profile(getattr(source,f"{side}_profile")); hardware_id=getattr(source.platform_context,f"{side}Hardware"); vendor=getattr(source.platform_context,f"{side}Vendor"); version=getattr(source,f"{side}_version")
+        hardware=next((item for item in HARDWARE_PROFILES if item.id==hardware_id),None)
+        domain=selection.domain if selection else source.platform_context.domain
+        if not profile or not hardware or profile.domain!=domain or hardware.domain!=domain or profile.vendor!=vendor or hardware.vendor!=profile.vendor:
+            raise HTTPException(422,f"Invalid {side} platform selection.")
+        support=resolve_hardware_software_support(hardware.id,profile.os_family,version)
+        if support.status!=SupportStatus.SUPPORTED or not support.evidence_refs:
+            raise HTTPException(422,f"{support.status.value}: {side} hardware/OS pair requires exact-version evidence.")
+
+def _platform_context_result(source:WorkbenchSource):
+    if source.migration_context is None:return None
+    from app.core.hardware.registry import hardware_registry_payload
+    from app.core.hardware.resolver import resolve_hardware_software_support
+    payload=hardware_registry_payload(); endpoints={}
+    for side in ("source","target"):
+        selected=getattr(source.migration_context,side); profile=platform_profile(selected.profile_id)
+        support=resolve_hardware_software_support(selected.hardware_id,profile.os_family,selected.os_version)
+        endpoints[side]={**selected.model_dump(),"compatibility_status":support.status.value,"evidence_refs":list(support.evidence_refs)}
+    refs={reference for endpoint in endpoints.values() for reference in endpoint["evidence_refs"]}
+    return {"domain":source.migration_context.domain,**endpoints,"evidence":{reference:payload["evidence"][reference] for reference in refs}}
+
+def _project_context(result:dict,source:WorkbenchSource):
+    source_profile=platform_profile(result["source_profile"]["id"]); target=platform_profile(result["target_profile"]["id"])
+    context={"source_filename":"source.cfg","source":{"domain":source_profile.domain.value,"vendor":source_profile.vendor.value,"platform":source_profile.platform.value,"exact_version":result["source_profile"]["version"],"profile_id":source_profile.id},"target":{"domain":target.domain.value,"vendor":target.vendor.value,"platform":target.platform.value,"exact_version":result["target_profile"]["version"],"profile_id":target.id}}
+    if source.migration_context:
+        context["source"]["hardware_id"]=source.migration_context.source.hardware_id
+        context["target"]["hardware_id"]=source.migration_context.target.hardware_id
+    return context
 
 def ingest_source_text(source_text:str):
     if len(source_text.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds the 100 MiB limit.")
@@ -51,6 +143,7 @@ def ingest_source_text(source_text:str):
 
 @router.post("/workbench/run")
 def run_workbench(source:WorkbenchSource):
+    validate_platform_context(source)
     config=ingest_source_text(source.source_text); source_vendor=source.source_vendor; source_version=source.source_version; target_version=source.target_version
     detected=detect_vendor(config)
     try: vendor=detected.vendor if source_vendor=="auto" else Vendor(source_vendor)
@@ -63,11 +156,11 @@ def run_workbench(source:WorkbenchSource):
     target_version=source.target_version if source.target_profile else ("" if vendor==Vendor.CISCO_IOSXE else source.target_version)
     try:
         result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings)
-        project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"]},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); base=settings.workspace_dir.resolve()
+        result["platform_context"]=_platform_context_result(source)
+        project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"],"migration_context":source.migration_context.model_dump() if source.migration_context else None},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); base=settings.workspace_dir.resolve()
         if base not in root.parents: raise HTTPException(400,"Invalid workspace path")
         root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
-        source_profile=platform_profile(result["source_profile"]["id"]); target=platform_profile(result["target_profile"]["id"])
-        context={"source_filename":"source.cfg","source":{"domain":source_profile.domain.value,"vendor":source_profile.vendor.value,"platform":source_profile.platform.value,"exact_version":result["source_profile"]["version"],"profile_id":source_profile.id},"target":{"domain":target.domain.value,"vendor":target.vendor.value,"platform":target.platform.value,"exact_version":result["target_profile"]["version"],"profile_id":target.id}}
+        context=_project_context(result,source)
         (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
         if result.get("candidate"):
             migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
@@ -84,6 +177,7 @@ def _operation_worker(operation_id:str,source:WorkbenchSource):
         stage=(operations.get(operation_id) or {}).get("stage","VALIDATING_SOURCE"); operations.fail(operation_id,stage,exc)
 
 def run_workbench_instrumented(source:WorkbenchSource,progress):
+    validate_platform_context(source)
     config=ingest_source_text(source.source_text); detected=detect_vendor(config)
     try: vendor=detected.vendor if source.source_vendor=="auto" else Vendor(source.source_vendor)
     except ValueError as exc: raise ValueError("Unsupported source platform.") from exc
@@ -97,8 +191,9 @@ def run_workbench_instrumented(source:WorkbenchSource,progress):
     for stage,counts in (("CP1",{"findings":result["cp1_summary"].get("blocking_findings",0)}),("CP2",result.get("cp2_summary") or {}),("RENDERING",{"commands":sum(len(x["commands"]) for x in result["entities"])}),("SEMANTIC_DIFF",{}),("FINDINGS",{"findings":len(result["lint_findings"])})):
         if stage=="RENDERING" and not result["renderer_available"]:continue
         progress(stage); progress(stage,"COMPLETE",counts)
-    project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"]},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
-    source_profile=platform_profile(result["source_profile"]["id"]); target=platform_profile(result["target_profile"]["id"]); context={"source_filename":"source.cfg","source":{"domain":source_profile.domain.value,"vendor":source_profile.vendor.value,"platform":source_profile.platform.value,"exact_version":result["source_profile"]["version"],"profile_id":source_profile.id},"target":{"domain":target.domain.value,"vendor":target.vendor.value,"platform":target.platform.value,"exact_version":result["target_profile"]["version"],"profile_id":target.id}}
+    result["platform_context"]=_platform_context_result(source)
+    project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"],"migration_context":source.migration_context.model_dump() if source.migration_context else None},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
+    context=_project_context(result,source)
     (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
     if result.get("candidate"): migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
     create_manifest(root,project,context); result["project_id"]=project; return result
@@ -114,8 +209,12 @@ def _line_accounting(source_text:str,entities:list[dict]):
 
 @router.post("/workbench/operations",status_code=202)
 def start_workbench_operation(source:WorkbenchSource):
-    target=platform_profile(source.target_profile,source.target_version); render=bool(target and target.target_renderer)
-    project=str(uuid5(NAMESPACE_URL,json.dumps({"source":source.source_text,"source_profile":source.source_profile,"target_profile":source.target_profile},sort_keys=True)))
+    ingest_source_text(source.source_text)
+    if source.migration_context is None: raise HTTPException(422,"migration_context is required for workbench operations.")
+    validate_platform_context(source)
+    target=platform_profile(source.target_profile,source.target_version); render=bool(target and lookup_renderer(target.domain,target.vendor,target.platform,source.target_version))
+    if not render: raise HTTPException(422,"Renderer unavailable for the selected exact target platform.")
+    project=str(uuid5(NAMESPACE_URL,json.dumps({"source":source.source_text,"migration_context":source.migration_context.model_dump()},sort_keys=True)))
     operation_id=operations.create(project,"CONVERT" if render else "ANALYZE",render,{"domain":target.domain.value if target else None,"source_profile":source.source_profile,"target_profile":source.target_profile})
     executor.submit(_operation_worker,operation_id,source); return {"operation_id":operation_id,"status":"RUNNING"}
 

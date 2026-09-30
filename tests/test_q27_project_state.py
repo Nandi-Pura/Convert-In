@@ -13,6 +13,16 @@ def test_manifest_identity_exact_versions_and_determinism(tmp_path):
     assert first["schema"]==SCHEMA and first["project_id"]=="p" and first["source"]["exact_version"]=="9.20" and first["target"]["exact_version"]=="11.1"
     assert first["fingerprint"]==second["fingerprint"] and first["source"]["sha256"]==file_sha(root/"source.cfg")
 
+
+def test_optional_hardware_context_participates_in_state_without_breaking_old_projects(tmp_path):
+    root,legacy=fixture(tmp_path)
+    assert "hardware_id" not in legacy["source"]
+    with_hardware={"source_filename":CONTEXT["source_filename"],"source":{**CONTEXT["source"],"hardware_id":"source-model"},"target":{**CONTEXT["target"],"hardware_id":"target-model"}}
+    current=create_manifest(root,"p",with_hardware)
+    assert current["source"]["hardware_id"]=="source-model"
+    assert current["target"]["hardware_id"]=="target-model"
+    assert current["state"]["fingerprint"]!=legacy["state"]["fingerprint"]
+
 @pytest.mark.parametrize(("reason","stale","current"),[("target",("cp2","candidate","semantic_diff","evidence_pack"),("cp0","cp1")),("mapping",("candidate","migration_report","semantic_diff"),("normalized","cp0")),("review",("migration_report","evidence_pack"),("normalized","candidate"))])
 def test_invalidation_matrix(tmp_path,reason,stale,current):
     root,_=fixture(tmp_path)

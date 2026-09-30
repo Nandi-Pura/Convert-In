@@ -66,115 +66,152 @@ def test_malformed_is_recoverable(page,live_server):
     with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as response: page.get_by_role("button",name="Analyze & Convert").click()
     assert response.value.status==422; assert page.locator("#source").input_value()=="not a firewall configuration"
 
-def open_result(page,live_server):
+def open_result(page, live_server):
+    import io
+    import json
+    import zipfile
+
+    source = "\n".join(f"source-line-{i}" for i in range(1500))
+    profile = {"id": "ui-source", "vendor": "PALO_ALTO", "platform": "PAN_OS", "domain": "FIREWALL", "supported_versions": [], "target_capability": "", "version": "10.2.8"}
+    entity = {"entity_type": "address", "source_snippet": "", "source_lines": [1], "target_snippet": "", "findings": []}
+    result = {
+        "project_id": "ui-fixture", "mode": "CONVERT", "renderer_available": True,
+        "source_profile": profile, "target_profile": {**profile, "id": "ui-target", "version": "11.1.6"},
+        "source_text": source, "candidate": "READY_ONLY\n" + "\n".join(f"# candidate-line-{i}" for i in range(1500)),
+        "cp0_summary": {}, "cp1_summary": {}, "cp2_summary": {},
+        "entities": [
+            {**entity, "id": "ready", "source_title": "Ready address", "user_status": "READY", "detailed_status": "EXACT", "copyable": True, "commands": ["READY_ONLY"]},
+            {**entity, "id": "review", "source_title": "Review address", "user_status": "REVIEW REQUIRED", "detailed_status": "MANUAL_REVIEW", "copyable": True, "commands": ["REVIEW_ONLY"]},
+            {**entity, "id": "blocked", "source_title": "Blocked address", "user_status": "BLOCKED", "detailed_status": "UNSUPPORTED", "copyable": True, "commands": ["BLOCKED_ONLY"]},
+        ],
+        "lint_findings": [],
+        "semantic_diff": {"entities": [{"entity_id": "ready", "entity_type": "address", "source_identity": "Ready address", "overall_classification": "PRESERVED", "property_diffs": []}]},
+        "line_accounting": {"total_analyzed_lines": 1500, "converted_lines": 900, "review_lines": 300, "unsupported_lines": 150, "unchanged_lines": 150, "method": "UI test fixture"},
+    }
+    manifest = {"project_id": "ui-fixture", "source": {"filename": "ui-fixture.cfg", "size_bytes": len(source), "line_count": 1500, "exact_version": "10.2.8"}, "target": {"exact_version": "11.1.6"}, "artifacts": {}, "fingerprint": "fixture"}
+    page.route("**/api/projects/ui-fixture", lambda route: route.fulfill(json={"manifest": manifest, "source_text": source, "result": result}))
+    page.route("**/api/projects/ui-fixture/migration/plan", lambda route: route.fulfill(json={"plan_id": "fixture", "summary": {"total_entities": 0}, "entities": [], "blocked": [], "advisories": []}))
+    page.route("**/api/projects/ui-fixture/migration/evidence-pack", lambda route: route.fulfill(json={"fingerprint": "fixture", "artifacts": []}))
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zipped:
+        zipped.writestr("manifest.json", json.dumps(manifest))
+    page.route("**/api/projects/ui-fixture/export", lambda route: route.fulfill(body=archive.getvalue(), headers={"Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="ui-fixture.zip"'}))
     page.goto(live_server)
-    page.get_by_role("button",name="Paste Configuration").click()
-    page.get_by_role("textbox",name="Configuration").fill(Path("examples/fortigate/basic.conf").read_text())
-    page.get_by_role("button",name="Use Configuration").click()
-    page.get_by_role("button",name="Analyze / Convert").click()
-    page.get_by_test_id("compare-workspace").wait_for(timeout=120000)
+    page.once("dialog", lambda dialog: dialog.accept("ui-fixture"))
+    page.get_by_role("button", name="Project: Untitled", exact=True).click()
+    page.locator(".locked-comparison").wait_for()
+    return result
 
 
-def test_configmorph_workbench_flow_and_safety(page,live_server):
-    live_server,_=live_server; page.set_viewport_size({"width":1440,"height":900}); open_result(page,live_server)
-    assert page.get_by_text("Network Configuration Migration Workbench").is_visible()
-    assert page.get_by_text("Visualize. Analyze. Migrate.").is_visible()
-    assert page.locator(".compare > section").count()==3
-    for tab in ("Semantic Diff","Raw Comparison","Findings","Migration Plan","Evidence"):
-        page.get_by_role("tab",name=tab,exact=True).click(); assert page.get_by_role("tab",name=tab,exact=True).get_attribute("aria-selected")=="true"
-    page.get_by_role("tab",name="Raw Comparison",exact=True).click()
-    page.locator(".toolbar").get_by_role("button",name="Blocked",exact=False).click()
-    blocked=page.locator(".semantic-item").first
-    if blocked.count():
-        blocked.click(); assert page.get_by_role("button",name="Copy Selected").is_disabled()
-    assert page.locator("footer").get_by_text("Engineer Review Required",exact=False).is_visible()
+def test_configmorph_workbench_flow_and_safety(page, context, live_server):
+    context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.set_viewport_size({"width": 1440, "height": 900})
+    open_result(page, live_server[0])
+    assert page.get_by_text("Network Configuration Migration", exact=True).is_visible()
+    for tab in ("Raw Comparison", "Semantic Diff", "Migration Plan", "Candidate Configuration", "Evidence"):
+        page.get_by_role("tab", name=tab, exact=True).click()
+        assert page.get_by_role("tab", name=tab, exact=True).get_attribute("aria-selected") == "true"
+    page.get_by_role("tab", name="Candidate Configuration", exact=True).click()
+    page.get_by_role("button", name="Copy All READY", exact=True).click()
+    page.locator("#result-panel").get_by_role("status").wait_for()
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert "READY_ONLY" in copied
+    assert "REVIEW_ONLY" not in copied
+    assert "BLOCKED_ONLY" not in copied
+    assert "ENGINEER REVIEW REQUIRED" in copied
+    assert page.locator("footer").get_by_text("CANDIDATE CONFIGURATION", exact=False).is_visible()
 
 
-def test_configmorph_visual_composition(page,live_server):
-    live_server,_=live_server; page.set_viewport_size({"width":1440,"height":900}); open_result(page,live_server)
-    source=page.get_by_test_id("source-context"); target=page.get_by_test_id("target-context"); actions=page.get_by_test_id("actions-card"); summary=page.get_by_test_id("conversion-summary")
-    boxes=[item.bounding_box() for item in (source,target,actions,summary)]
-    assert max(box["y"] for box in boxes)-min(box["y"] for box in boxes)<2
-    assert max(box["height"] for box in boxes)-min(box["height"] for box in boxes)<2
-    assert source.evaluate("e => getComputedStyle(e).borderRadius")!="0px"
-    assert page.get_by_test_id("assurance-row").locator("article").count()==5
-    panes=page.locator(".compare > section"); assert panes.count()==3
-    widths=[pane.bounding_box()["width"] for pane in panes.all()]
-    assert max(widths)-min(widths)<30
-    assert page.locator(".status-rail").count()==2
-    assert page.locator(".semantic-item").count()>0
-    assert page.locator(".status-badge").first.is_visible()
-    assert page.locator(".semantic-item").count()<=20
+def test_configmorph_visual_composition(page, live_server):
+    page.set_viewport_size({"width": 1440, "height": 900})
+    open_result(page, live_server[0])
+    boxes = [page.locator(selector).bounding_box() for selector in (".source-card", ".target-card", ".conversion-success")]
+    assert max(box["y"] for box in boxes) - min(box["y"] for box in boxes) < 2
+    assert boxes[2]["x"] > boxes[1]["x"]
+    panes = page.locator(".locked-comparison > .locked-editor")
+    assert panes.count() == 2
+    assert abs(panes.nth(0).bounding_box()["width"] - panes.nth(1).bounding_box()["width"]) < 2
+    assert page.locator(".semantic-markers").count() == 0
+    assert page.locator(".conversion-summary").is_visible()
 
 
-def test_configmorph_viewports_and_focus(page,live_server):
-    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); open_result(page,live_server)
-    for width,height in ((1280,800),(1440,900),(1600,900),(1920,1080)):
-        page.set_viewport_size({"width":width,"height":height})
-        assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
-        assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
-    workspace=page.get_by_test_id("compare-workspace"); normal=workspace.bounding_box()["height"]
-    page.get_by_test_id("focus-toggle").click(); assert "focus" in page.locator("main").get_attribute("class"); assert workspace.bounding_box()["height"]>normal
-    page.keyboard.press("Escape"); assert "focus" not in page.locator("main").get_attribute("class")
+def test_configmorph_viewports_and_keyboard_tabs(page, live_server):
+    page.set_viewport_size({"width": 1440, "height": 900})
+    open_result(page, live_server[0])
+    for width, height in ((1440,900),(1600,900),(1920,1080)):
+        page.set_viewport_size({"width": width, "height": height})
+        assert page.locator("main").evaluate("el => el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth")
+    page.get_by_role("tab", name="Raw Comparison", exact=True).focus()
+    page.keyboard.press("End")
+    assert page.get_by_role("tab", name="Evidence", exact=True).get_attribute("aria-selected") == "true"
+    page.keyboard.press("Home")
+    assert page.get_by_role("tab", name="Raw Comparison", exact=True).get_attribute("aria-selected") == "true"
 
 
-def test_configmorph_line_accounting_and_project_export(page,live_server):
-    live_server,_=live_server; open_result(page,live_server)
-    values=[int(x.rstrip('%')) for x in page.locator(".conversion p > b").all_text_contents()]
-    assert sum(values)==100
-    assert page.get_by_role("link",name="Export Project").is_visible()
-    assert "7.4" in page.locator(".context article").first.inner_text()
+def test_configmorph_conversion_success_and_project_export(page, live_server):
+    open_result(page, live_server[0])
+    assert page.get_by_role("img", name="60 percent of source lines converted").is_visible()
+    assert page.locator(".donut b").inner_text() == "60%"
+    assert page.get_by_role("link", name="Save", exact=True).is_visible()
+    with page.expect_download() as download:
+        page.get_by_role("link", name="Save", exact=True).click()
+    assert download.value.suggested_filename == "ui-fixture.zip"
 
 
-def test_configmorph_empty_shell_and_import(page,live_server):
-    live_server,_=live_server; page.set_viewport_size({"width":1280,"height":800}); page.goto(live_server)
-    assert page.get_by_text("ConfigMorph",exact=True).is_visible()
-    assert page.get_by_test_id("source-context").get_by_text("No source configuration loaded.").is_visible()
-    assert page.get_by_test_id("target-context").get_by_text("No target selected.").is_visible()
-    assert page.get_by_role("button",name="Analyze / Convert").is_disabled()
-    assert page.get_by_test_id("conversion-summary").get_by_text("0 lines analyzed").is_visible()
-    assert page.get_by_test_id("assurance-row").get_by_text("Source Parsing").is_visible()
-    for tab in ("Semantic Diff","Raw Comparison","Findings","Migration Plan","Evidence"):
-        assert page.get_by_role("tab",name=tab,exact=True).is_visible()
-    assert page.get_by_text("Import a configuration to begin a migration review.").is_visible()
-    page.get_by_role("button",name="Paste Configuration").click()
-    page.get_by_role("textbox",name="Configuration").fill(Path("examples/fortigate/basic.conf").read_text())
-    page.get_by_role("button",name="Use Configuration").click()
-    assert not page.get_by_role("textbox",name="Configuration").is_visible()
-    page.wait_for_function("() => !document.querySelector('button.primary')?.disabled")
-    assert page.get_by_role("button",name="Analyze / Convert").is_enabled()
-    for width,height in ((1280,800),(1440,900),(1600,900),(1920,1080)):
-        page.set_viewport_size({"width":width,"height":height})
-        assert page.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1")
+def test_configmorph_empty_shell_and_import(page, live_server):
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.goto(live_server[0])
+    assert page.get_by_role("heading", name="ConfigMorph", exact=True).is_visible()
+    assert page.get_by_label("Source Vendor", exact=True).input_value() == ""
+    assert page.get_by_label("Target Vendor", exact=True).input_value() == ""
+    assert page.get_by_role("button", name="Convert", exact=True).is_disabled()
+    assert page.get_by_role("img", name="Conversion results unavailable until Convert completes").is_visible()
+    for tab in ("Raw Comparison", "Semantic Diff", "Migration Plan", "Candidate Configuration", "Evidence"):
+        assert page.get_by_role("tab", name=tab, exact=True).is_visible()
+    page.get_by_role("button", name="Paste from Clipboard").click()
+    page.get_by_role("textbox", name="Configuration", exact=True).fill(Path("examples/fortigate/basic.conf").read_text())
+    page.get_by_role("button", name="Use Configuration", exact=True).click()
+    assert not page.get_by_role("textbox", name="Configuration", exact=True).is_visible()
+    assert page.get_by_role("button", name="Convert", exact=True).is_disabled()
+    assert "config system interface" in page.get_by_label("Source Configuration", exact=True).text_content()
 
 
-def test_configmorph_selectors_virtualization_and_stale_result(page,live_server):
-    live_server,_=live_server; open_result(page,live_server)
-    assert page.get_by_test_id("source-virtualized").locator(".code-line").count()<=90
-    assert page.get_by_test_id("target-virtualized").locator(".code-line").count()<=90
-    entity=page.locator(".semantic-item").first
-    if entity.count():
-        entity.click(); assert "selected" in entity.get_attribute("class").split()
-    page.get_by_role("button",name="Edit Source").click()
-    source_version=page.get_by_role("group",name="Edit source").get_by_label("Version")
-    choices=source_version.locator("option").all_text_contents()
-    if len(choices)>1: source_version.select_option(label=choices[1])
-    else: page.get_by_role("group",name="Edit source").get_by_label("Platform").select_option(index=0)
-    assert page.get_by_text("Previous analysis is stale.",exact=False).is_visible()
-    assert page.locator(".workspace-empty").get_by_text("Run Analyze / Convert again.",exact=False).is_visible()
+def test_configmorph_selectors_virtualization_and_stale_result(page, live_server):
+    from playwright.sync_api import expect
+
+    open_result(page, live_server[0])
+    panes = page.locator(".locked-comparison .editor-lines")
+    for pane in panes.all():
+        assert pane.locator(".editor-line").count() <= 80
+    page.get_by_role("button", name="Filters", exact=True).click()
+    expect(page.get_by_label("Source Configuration (Palo Alto Networks)", exact=True)).to_contain_text("source-line-0")
+    panes.first.evaluate("el => el.scrollTop = el.scrollHeight")
+    expect(panes.first.locator(".editor-line").last).to_contain_text("source-line-1499")
+    assert panes.first.locator(".editor-line").count() <= 80
+    page.get_by_role("tab", name="Candidate Configuration", exact=True).click()
+    page.get_by_label("Source Vendor", exact=True).select_option("PALO_ALTO")
+    expect(page.locator(".workspace-empty")).to_contain_text("Previous results are stale.")
+    assert page.get_by_role("button", name="Copy All READY", exact=True).count() == 0
+    assert page.get_by_role("link", name="Download Candidate", exact=True).count() == 0
+    expect(page.get_by_role("img", name="Conversion results unavailable until Convert completes")).to_be_visible()
 
 
-def test_configmorph_detects_fortios_7013_and_selects_panos_111(page,live_server):
-    live_server,_=live_server; page.goto(live_server)
-    config='#config-version=FG39E8-7.0.13-FW-build0000-000000:opmode=0:vdom=0:user=admin\nconfig firewall address\n edit "WEB"\n  set subnet 192.0.2.1 255.255.255.255\n next\nend\nconfig firewall policy\nend\n'
-    page.get_by_role("button",name="Paste Configuration").click()
-    page.get_by_role("textbox",name="Configuration").fill(config)
-    page.get_by_role("button",name="Use Configuration").click()
-    page.get_by_role("button",name="Analyze / Convert").wait_for(state="visible")
-    page.wait_for_function("() => !document.querySelector('button.primary')?.disabled")
-    page.get_by_role("button",name="Edit Source").click()
-    assert page.get_by_role("group",name="Edit source").get_by_label("Version").input_value()=="7.0.13"
-    page.get_by_role("button",name="Change Target").click()
-    target=page.get_by_role("group",name="Change target")
-    assert target.get_by_label("Platform").locator("option:checked").inner_text()=="PAN OS"
-    assert target.get_by_label("Version").input_value()=="11.1"
+def test_configmorph_detected_version_does_not_select_target(page, live_server):
+    from playwright.sync_api import expect
+
+    page.goto(live_server[0])
+    config = '#config-version=FG39E8-7.0.13-FW-build0000-000000:opmode=0:vdom=0:user=admin\nconfig firewall address\n edit "WEB"\n  set subnet 192.0.2.1 255.255.255.255\n next\nend\nconfig firewall policy\nend\n'
+    page.get_by_role("button", name="Paste from Clipboard", exact=True).click()
+    page.get_by_role("textbox", name="Configuration", exact=True).fill(config)
+    page.get_by_role("button", name="Use Configuration", exact=True).click()
+    expect(page.get_by_label("Source OS Version", exact=True)).to_have_value("")
+    expect(page.get_by_text("Configuration reports 7.0.13; selected version is empty.", exact=True)).to_be_visible()
+    page.get_by_label("Source Vendor", exact=True).select_option("PALO_ALTO")
+    page.get_by_label("Source Hardware", exact=True).select_option("paloalto-pa5220")
+    page.get_by_role("button", name="Use detected version", exact=True).click()
+    expect(page.get_by_label("Source OS Version", exact=True)).to_have_value("7.0.13")
+    page.get_by_text("Evidence", exact=True).first.click()
+    expect(page.get_by_text("Unknown software", exact=True)).to_be_visible()
+    expect(page.get_by_label("Target Vendor", exact=True)).to_have_value("")
+    expect(page.get_by_label("Target OS Version", exact=True)).to_have_value("")
+    expect(page.get_by_role("button", name="Convert", exact=True)).to_be_disabled()
