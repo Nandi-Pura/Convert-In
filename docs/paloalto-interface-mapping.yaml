@@ -1,0 +1,95 @@
+scope:
+  source_hardware_id: paloalto-pa5220
+  target_hardware_id: paloalto-pa5410
+  source_profile: panos-11.1
+  target_profile: panos-11.1
+  selection: manual_only
+  deployment: unsupported
+
+evidence:
+  PA-5220-DATAPLANE-PORTS:
+    url: https://docs.paloaltonetworks.com/hardware/pa-5200-hardware-reference/pa-5200-series-firewall-overview/pa-5200-front-panel
+    verified_at: 2026-10-01
+  PA-5410-DATAPLANE-PORTS:
+    url: https://docs.paloaltonetworks.com/hardware/pa-5400-hardware-reference/pa-5400-series-firewall-overview/pa-5400-series-front-and-back-panel-descriptions/pa-5400-series-front-panel
+    verified_at: 2026-10-01
+  PANOS-11.1-LAYER3-INTERFACES:
+    url: https://docs.paloaltonetworks.com/ngfw/networking/configure-interfaces/layer-3-interfaces/configure-layer-3-interfaces
+    verified_at: 2026-09-30
+  PANOS-11.1-CONFIGURE-CLI-HIERARCHY:
+    url: https://docs.paloaltonetworks.com/ngfw/pan-os-cli-quick-start/cli-command-hierarchy/pan-os-11-1-configure-cli-command-hierarchy
+    verified_at: 2026-09-30
+
+dataplane_ports:
+  paloalto-pa5220:
+    count: 24
+    groups:
+      - interfaces: ethernet1/1-ethernet1/4
+        connector: RJ45
+        speeds: [100M, 1G, 10G]
+      - interfaces: ethernet1/5-ethernet1/20
+        connector: SFP_PLUS
+        speeds: [1G, 10G]
+      - interfaces: ethernet1/21-ethernet1/24
+        connector: QSFP_PLUS
+        speeds: [40G]
+  paloalto-pa5410:
+    count: 44
+    groups:
+      - interfaces: ethernet1/1-ethernet1/8
+        connector: RJ45
+        speeds: [10M, 100M, 1G, 2_5G, 5G, 10G]
+      - interfaces: ethernet1/9-ethernet1/20
+        connector: SFP_PLUS
+        speeds: [1G, 10G]
+      - interfaces: ethernet1/21-ethernet1/24
+        connector: SFP28
+        speeds: [1G, 10G, 25G]
+      - interfaces: ethernet1/25-ethernet1/40
+        connector: QSFP28
+        speeds: [10G, 25G]
+        constraint: breakout child identity; automatic breakout configuration is unsupported
+      - interfaces: ethernet1/41-ethernet1/44
+        connector: QSFP28
+        speeds: [40G, 100G]
+
+special_ports_excluded: [MGT, console, USB, AUX, HA1, HA2, HSCI]
+
+mapping:
+  statuses: [EXACT, COMPATIBLE, REQUIRES_REMAP, INCOMPATIBLE, UNVERIFIED, UNMAPPED]
+  required_confirmation: true
+  automatic_selection: false
+  duplicate_target_assignment: blocking
+  unknown_target: blocking
+  stale_hardware_context: blocking
+  installed_optic_or_cabling_claim: unsupported
+  aggregate_ethernet_automation: unsupported
+  breakout_automation: unsupported
+
+structural_remap:
+  source_model_retained: true
+  supported_references:
+    - physical interface identity
+    - explicit subinterface parent and VLAN identity
+    - Layer3 zone membership
+    - static route interface
+    - security policy explicit ingress and egress interface fields
+    - NAT explicit ingress, egress, and translation target fields
+  unchanged:
+    - virtual router identity
+    - IP addresses
+    - next hop
+    - user descriptions
+  string_replacement: forbidden
+  vlan_inference_from_name: forbidden
+
+api:
+  get: /api/projects/{project_id}/migration/interface-mappings
+  put: /api/projects/{project_id}/migration/interface-mappings
+  reset: DELETE /api/projects/{project_id}/migration/interface-mappings
+  validate: POST /api/projects/{project_id}/migration/interface-mappings/validate
+
+tests:
+  - tests/test_paloalto_port_capabilities.py
+  - tests/test_interface_mapping.py
+  - tests/test_paloalto_migration_pipeline.py

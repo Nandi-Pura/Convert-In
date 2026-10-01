@@ -7,6 +7,24 @@ from app.core.models import (Address,FirewallConfig,Interface,NatRule,ParseIssue
 from app.core.parsing.base import DetectionResult
 from app.core.versions import detect_version
 
+_LINK_SPEEDS = {
+    "10": "10M",
+    "100": "100M",
+    "1000": "1G",
+    "2500": "2_5G",
+    "5000": "5G",
+    "10000": "10G",
+    "25000": "25G",
+    "40000": "40G",
+    "100000": "100G",
+}
+
+
+def _configured_link_speed(value):
+    if value is None or value.strip().lower() == "auto":
+        return None
+    return _LINK_SPEEDS.get(value.strip())
+
 class PaloAltoParser:
     vendor=Vendor.PALO_ALTO
     def detect(self,text):
@@ -80,8 +98,13 @@ class PaloAltoParser:
             l3=e.find("layer3")
             if l3 is None:self._xml(cfg,e,"interface","Only Ethernet Layer3 interfaces are supported");continue
             n=e.attrib.get("name","");ext=self._ext(l3,{"ip","units"});ips,invalid=self._ips(l3,cfg,e)
+            raw_speed=e.findtext("link-speed");configured_speed=_configured_link_speed(raw_speed)
+            if raw_speed and raw_speed.strip().lower()!="auto" and configured_speed is None:
+                ext["unverified_link_speed"]=raw_speed.strip()
+                ext["manual_review"]="Configured link speed is not a verified normalized PAN-OS value"
+                self._xml(cfg,e,"interface",f"Configured link speed is not verified: {raw_speed.strip()}")
             if ext or invalid:ext["manual_review"]="Unsupported or invalid Layer3 interface settings are preserved"
-            cfg.interfaces.append(Interface(id=f"interface:{n}",name=n,ipv4=ips,description=e.findtext("comment"),enabled=e.findtext("disabled","no")!="yes",provenance=p,vendor_extensions=ext))
+            cfg.interfaces.append(Interface(id=f"interface:{n}",name=n,ipv4=ips,description=e.findtext("comment"),enabled=e.findtext("disabled","no")!="yes",configured_speed=configured_speed,provenance=p,vendor_extensions=ext))
             for u in l3.findall("./units/entry"):
                 un=u.attrib.get("name","");tag=u.findtext("tag")
                 if not tag or not tag.isdigit():self._xml(cfg,u,"interface","Layer3 subinterface requires an explicit VLAN tag");continue

@@ -3,6 +3,7 @@ from enum import StrEnum
 from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 from app.core.models import Vendor
+from app.core.hardware.models import PortMappingStatus
 from app.core.versions.models import VersionContext
 
 class CompatibilityStatus(StrEnum):
@@ -22,6 +23,21 @@ class CompatibilityResult(BaseModel):
 class InterfaceMapping(BaseModel):
     source_interface:str; source_nameif:str|None=None; target_interface:str|None=None; target_zone:str|None=None; suggested_zone:str|None=None; confirmed:bool=False
     source_profile:str|None=None; source_version:str|None=None; target_profile:str|None=None; target_version:str|None=None; source_entity_id:str|None=None
+    source_hardware_id:str|None=None; target_hardware_id:str|None=None
+    status:PortMappingStatus=PortMappingStatus.UNMAPPED; compatibility_reasons:list[str]=Field(default_factory=list)
+    confirmed_by_user:bool=False; source_evidence_refs:list[str]=Field(default_factory=list); target_evidence_refs:list[str]=Field(default_factory=list)
+    @model_validator(mode="after")
+    def explicit_confirmation(self):
+        if self.confirmed_by_user:self.confirmed=True
+        return self
+
+class InterfaceMappingSummary(BaseModel):
+    required:int=0; mapped:int=0; exact:int=0; compatible:int=0; unmapped:int=0; incompatible:int=0; unverified:int=0
+
+class InterfaceMappingValidation(BaseModel):
+    source_hardware_id:str; target_hardware_id:str; mappings:list[InterfaceMapping]
+    summary:InterfaceMappingSummary; valid_for_conversion:bool=False
+    blocking_reasons:list[str]=Field(default_factory=list); evidence_refs:list[str]=Field(default_factory=list)
 
 class TargetManagementMode(StrEnum):
     LOCAL_FIREWALL="LOCAL_FIREWALL"; PANORAMA="PANORAMA"
@@ -64,6 +80,7 @@ class MigrationMappings(BaseModel):
     security_rule_placement:SecurityRulePlacement|None=None
     nat_rule_placement:NatRulePlacement|None=None; nat_route_outcomes:list[NatRouteOutcome]=Field(default_factory=list)
     interfaces:list[InterfaceMapping]=Field(default_factory=list)
+    source_hardware_id:str|None=None; target_hardware_id:str|None=None
     @model_validator(mode="before")
     @classmethod
     def legacy_mode(cls,v):
@@ -94,6 +111,7 @@ class MigrationPlan(BaseModel):
     compatibility:list[CompatibilityResult]; names:list[NameMapping]; generate:list[PlannedEntity]
     blocked:list[str]=Field(default_factory=list); advisories:list[str]=Field(default_factory=list)
     source_version:VersionContext|None=None; target_version:VersionContext|None=None
+    interface_mapping:InterfaceMappingValidation|None=None
 
 class SecurityRuleOrderRelation(StrEnum):
     TOP="TOP"; BOTTOM="BOTTOM"; BEFORE="BEFORE"; AFTER="AFTER"
@@ -145,7 +163,8 @@ class MigrationReport(BaseModel):
     categories:CategoryCounts; warnings:list[str]=Field(default_factory=list); errors:list[str]=Field(default_factory=list)
     required_mappings:list[str]=Field(default_factory=list); generated_entities:int=0; skipped_entities:int=0
     compatibility:list[CompatibilityResult]; names:list[NameMapping]
-    source_version:VersionContext|None=None; target_version:VersionContext|None=None; documentation_refs:list[str]=Field(default_factory=list); version_validation_result:str="BLOCKING"
+    source_version:VersionContext|None=None; target_version:VersionContext|None=None
+    interface_mapping:InterfaceMappingValidation|None=None; documentation_refs:list[str]=Field(default_factory=list); version_validation_result:str="BLOCKING"
     security_rule_ordering:PolicyOrderingPlan|None=None
     nat_rule_ordering:NatPolicyOrderingPlan|None=None
 

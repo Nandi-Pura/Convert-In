@@ -2,6 +2,7 @@ import ipaddress
 from app.core.models import Severity, Vendor
 from app.core.analysis import AnalysisEngine
 from .compatibility import finalize, result
+from .interface_mapping import apply_interface_mappings, validate_interface_mappings
 from .mappings import confirmed_maps, normalize_names
 from .models import CompatibilityStatus as S, MigrationMappings, MigrationPlan, PlannedEntity
 from .registry import source_adapter
@@ -13,6 +14,21 @@ class MigrationPlanner:
         mappings=mappings.model_copy(deep=True)
         source=cfg.metadata.get("source_vendor")
         source=Vendor(source); cfg=source_adapter(source)().adapt(cfg)
+        source_cfg=cfg.model_copy(deep=True)
+        interface_mapping=None
+        mapping_blocked=[]
+        hardware_ids={mappings.source_hardware_id,mappings.target_hardware_id}
+        hardware_mapping_requested=source==Vendor.PALO_ALTO and target_vendor==Vendor.PALO_ALTO and bool({"paloalto-pa5220","paloalto-pa5410"} & hardware_ids)
+        if hardware_mapping_requested:
+            if not mappings.source_hardware_id or not mappings.target_hardware_id:
+                mapping_blocked.append("Source and target hardware identities are required for interface mapping.")
+            else:
+                interface_mapping=validate_interface_mappings(cfg,mappings.source_hardware_id,mappings.target_hardware_id,mappings.interfaces)
+                mappings.interfaces=interface_mapping.mappings
+                if interface_mapping.valid_for_conversion:
+                    cfg=apply_interface_mappings(cfg,interface_mapping)
+                else:
+                    mapping_blocked.extend(interface_mapping.blocking_reasons)
         entities=cfg.interfaces+cfg.zones+cfg.addresses+cfg.address_groups+cfg.services+cfg.service_groups+cfg.security_policies+cfg.nat_policies+cfg.static_routes+cfg.vpn_objects
         names=normalize_names(entities); targets={x.entity_id:x.target_name for x in names}
         address_by_name={x.name:x for x in cfg.addresses+cfg.address_groups}
@@ -54,7 +70,7 @@ class MigrationPlanner:
         for x in cfg.interfaces:
             mapping=interface_maps.get(x.name)
             if pan_same and not x.vendor_extensions.get("manual_review") and x.enabled:
-                add(x,"interface",S.SUPPORTED,{"name":x.name,"type":x.type,"ipv4":x.ipv4,"enabled":x.enabled,"description":x.description,"vlan":x.vlan,"parent":x.parent,"virtual_router":x.virtual_router})
+                add(x,"interface",S.SUPPORTED,{"name":x.name,"type":x.type,"ipv4":x.ipv4,"enabled":x.enabled,"description":x.description,"vlan":x.vlan,"parent":x.parent,"virtual_router":x.virtual_router,"configured_speed":x.configured_speed})
             elif srx and mapping and mapping.target_interface and mapping.target_zone:
                 add(x,"interface",S.SUPPORTED,{"interface":mapping.target_interface,"zone":mapping.target_zone})
             else: add(x,"interface",S.MANUAL_REVIEW,None,x.vendor_extensions.get("manual_review") or "Confirmed target interface and zone mapping is required; interface L3 configuration is not generated.",required=[f"interface:{x.name}"] if not mapping and not pan_same else [])
@@ -135,7 +151,7 @@ class MigrationPlanner:
                 if fortios and any(v.lower() in {"any","any4","any6","application-default","service-http","service-https"} for v in refs):
                     add(x,"security_policy",S.MANUAL_REVIEW,None,"Built-in address and service mappings require explicit evidence.",topology=topology); continue
                 resolve_address=lambda values:[v if v.lower() in {"any","any4","any6"} else targets[address_by_name[v].id] for v in values]; resolve_service=lambda values:[v if v.lower() in {"any","application-default","service-http","service-https"} else targets[service_by_name[v].id] for v in values]
-                add(x,"security_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve_address(x.sources),"destination":resolve_address(x.destinations),"service":resolve_service(x.services),"application":x.applications,"action":x.action,"enabled":x.enabled,"description":x.description,"log_start":x.log_start,"log_end":x.log_end,"position":x.position},topology=topology)
+                add(x,"security_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve_address(x.sources),"destination":resolve_address(x.destinations),"service":resolve_service(x.services),"application":x.applications,"action":x.action,"enabled":x.enabled,"description":x.description,"log_start":x.log_start,"log_end":x.log_end,"position":x.position,"ingress_interfaces":x.ingress_interfaces,"egress_interfaces":x.egress_interfaces},topology=topology)
         nat_positions=[x.position for x in cfg.nat_policies if x.position is not None]
         duplicate_nat_positions=len(nat_positions)!=len(set(nat_positions))
         for x in cfg.nat_policies:
@@ -160,7 +176,7 @@ class MigrationPlanner:
                 if x.type in {"destination_static_nat","source_destination_nat"} and not x.translated_destination: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Destination translation requires an explicit translated address."); continue
                 if x.type=="interface_address_pat" and (x.translation_target not in interface_by_name or interface_by_name[x.translation_target].id in non_renderable): add(x,"nat_policy",S.MANUAL_REVIEW,None,"Interface-address DIPP requires a safely renderable source interface."); continue
                 resolve_address=lambda values:[targets[address_by_name[v].id] if v in address_by_name else v for v in values]; resolve_service=lambda values:[targets[service_by_name[v].id] if v in service_by_name else v for v in values]
-                add(x,"nat_policy",S.SUPPORTED,{"from":x.source_zones,"to":x.destination_zones,"source":resolve_address(x.original_source),"destination":resolve_address(x.original_destination),"service":resolve_service(x.original_service)[0] if x.original_service else "any","type":x.type,"translated_source":resolve_address(x.translated_source),"translated_destination":resolve_address(x.translated_destination),"translation_target":x.translation_target,"enabled":x.enabled,"description":x.description,"position":x.position}); continue
+                add(x,"nat_policy",S.SUPPORTED,{"from":x.source_zones,"to":x.destination_zones,"source":resolve_address(x.original_source),"destination":resolve_address(x.original_destination),"service":resolve_service(x.original_service)[0] if x.original_service else "any","type":x.type,"translated_source":resolve_address(x.translated_source),"translated_destination":resolve_address(x.translated_destination),"translation_target":x.translation_target,"enabled":x.enabled,"description":x.description,"position":x.position,"ingress_interface":x.ingress_interface,"egress_interface":x.egress_interface}); continue
             if x.tags: add(x,"nat_policy",S.MANUAL_REVIEW,None,"NAT rule tags require manual review."); continue
             if x.vendor_extensions.get("manual_review"): add(x,"nat_policy",S.MANUAL_REVIEW,None,x.vendor_extensions["manual_review"])
             elif x.identity: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Identity NAT is preserved but not rendered.")
@@ -173,7 +189,7 @@ class MigrationPlanner:
             elif required: add(x,"nat_policy",S.MANUAL_REVIEW,None,"Confirmed source and destination zone mappings are required.",required=required)
             else:
                 resolve_address=lambda values:[targets[address_by_name[v].id] if v in address_by_name else v for v in values]; resolve_service=lambda values:[targets[service_by_name[v].id] if v in service_by_name else v for v in values]
-                add(x,"nat_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve_address(x.original_source or ["any"]),"destination":resolve_address(x.original_destination or ["any"]),"service":resolve_service(x.original_service)[0] if x.original_service else "any","type":x.type,"translated_source":resolve_address(x.translated_source),"translated_destination":resolve_address(x.translated_destination),"translated_service":resolve_service(x.translated_service)[0] if x.translated_service else None,"translation_target":x.translation_target,"position":x.position})
+                add(x,"nat_policy",S.SUPPORTED,{"from":[zone_maps[z] for z in x.source_zones],"to":[zone_maps[z] for z in x.destination_zones],"source":resolve_address(x.original_source or ["any"]),"destination":resolve_address(x.original_destination or ["any"]),"service":resolve_service(x.original_service)[0] if x.original_service else "any","type":x.type,"translated_source":resolve_address(x.translated_source),"translated_destination":resolve_address(x.translated_destination),"translated_service":resolve_service(x.translated_service)[0] if x.translated_service else None,"translation_target":x.translation_target,"position":x.position,"ingress_interface":x.ingress_interface,"egress_interface":x.egress_interface})
         for x in cfg.static_routes:
             if asa: add(x,"route",S.MANUAL_REVIEW,None,"ASA route interface nameif and routing context require explicit target context."); continue
             if srx and (x.interface or x.distance is not None or x.metric is not None or x.vendor_extensions): add(x,"route",S.MANUAL_REVIEW,None,"Only simple global IPv4 destination and next-hop routes are generated for SRX.",required=["target_route_context"]); continue
@@ -206,7 +222,19 @@ class MigrationPlanner:
                     capability=item.renderer_capability_id or ""
                     basis="|".join((item.entity_id,target_vendor.value,item.target_version or "",mappings.management_mode.value,item.status.value,capability))
                     item.decision_id=__import__("hashlib").sha256(basis.encode()).hexdigest()[:16]
-        return MigrationPlan(source_vendor=source,target_vendor=target_vendor,mappings=mappings,compatibility=compatibility,names=names,generate=generate,blocked=blocked,advisories=advisories,source_version=source_version,target_version=target_version)
+        source_entities={x.id:x for x in source_cfg.interfaces+source_cfg.zones+source_cfg.addresses+source_cfg.address_groups+source_cfg.services+source_cfg.service_groups+source_cfg.security_policies+source_cfg.nat_policies+source_cfg.static_routes+source_cfg.vpn_objects}
+        for item in compatibility:
+            original=source_entities.get(item.entity_id)
+            if original:
+                item.source_name=original.name
+                item.source_semantic=original.model_dump(mode="json",exclude={"provenance","vendor_extensions"})
+        for name in names:
+            if name.entity_id in source_entities:
+                name.source_name=source_entities[name.entity_id].name
+        if mapping_blocked:
+            blocked.extend(mapping_blocked)
+            generate=[]
+        return MigrationPlan(source_vendor=source,target_vendor=target_vendor,mappings=mappings,compatibility=compatibility,names=names,generate=generate,blocked=list(dict.fromkeys(blocked)),advisories=advisories,source_version=source_version,target_version=target_version,interface_mapping=interface_mapping)
 
     @staticmethod
     def _ip_value(value):

@@ -142,6 +142,7 @@ class Interface(Entity):
     vlan: int | None = None
     parent: str | None = None
     virtual_router: str | None = None
+    configured_speed: str | None = None
 
 
 class Zone(Entity):

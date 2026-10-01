@@ -85,7 +85,11 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
     if not target_vendor: raise ValueError("Target firewall renderer is not implemented.")
     source=resolve_context(text,vendor,source_version); target=resolve_context("",target_vendor,target_version)
     plan=MigrationPlanner().plan(cfg,MigrationMappings.model_validate(mappings or default_mappings(cfg)),source,target,integrity,target_vendor)
-    renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version); renderer=renderer_type(); candidate,_=renderer.render(plan)
+    renderer_type=lookup_renderer(target_profile.domain,target_profile.vendor,target_profile.platform,target_version); renderer=renderer_type()
+    if plan.blocked:
+        candidate=[]; renderer.commands=[]
+    else:
+        candidate,_=renderer.render(plan)
     commands=defaultdict(list)
     for command in renderer.commands: commands[command.entity_id].append(command.text)
     source_entities={x.id:x for xs in (cfg.interfaces,cfg.zones,cfg.addresses,cfg.address_groups,cfg.services,cfg.service_groups,cfg.security_policies,cfg.nat_policies,cfg.static_routes,cfg.vpn_objects) for x in xs}
@@ -97,7 +101,12 @@ def build(text:str,vendor:Vendor,source_version:str,target_version:str="11.1",so
         entities.append(_row(source_entities[item.entity_id],item.entity_type,_snippet(lines,source_entities[item.entity_id]),"\n".join(emitted) or "No generated target config",status,detail,reasons,names.get(item.entity_id),emitted,item.documentation_refs))
     cp2=Counter(x.status.value for x in plan.compatibility)
     header=["# ConfigMorph","# CANDIDATE CONFIGURATION — ENGINEER REVIEW REQUIRED","#",f"# Domain: {profile.domain.value.title()}",f"# Source: {profile.vendor.value.title()} {profile.platform.value.replace('_','-')} {source_version}",f"# Target: {target_profile.vendor.value.title()} {target_profile.platform.value} / {target_profile.os_family} {target_version}","#","# Application-level validation only","# No device deployment performed",f"# CP0: {cfg.extraction_coverage.normalized} normalized; {cfg.extraction_coverage.recovered} recovered; {cfg.extraction_coverage.unparsed} unparsed; {cfg.extraction_coverage.unsupported} source unsupported",f"# CP1: {integrity.blocking_findings} blocking findings",f"# CP2: {dict(cp2)}",f"# Conversion: {len(set(c.entity_id for c in renderer.commands))} generated; {sum(v for k,v in cp2.items() if k in {'MANUAL_REVIEW','PARTIAL'})} manual review; {cp2.get('UNSUPPORTED',0)} unsupported; {cp2.get('VERSION_NOT_VERIFIED',0)} version not verified",""]
-    result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,"\n".join(header+candidate)+"\n",lint_config(cfg,integrity)); return _with_semantic(result,_workbench_diff(cfg,plan.compatibility,profile,target_profile,source_version,target_version,mappings or plan.mappings.model_dump(mode="json")))
+    candidate_text=None if plan.blocked else "\n".join(header+candidate)+"\n"
+    result=_result(mode,profile,target_profile,source_version,target_version,cfg.extraction_coverage,integrity,dict(cp2),entities,candidate_text,lint_config(cfg,integrity))
+    result["interface_mapping"]=plan.interface_mapping.model_dump(mode="json") if plan.interface_mapping else None
+    result["migration_plan"]["interface_mapping"]=result["interface_mapping"]
+    result["migration_plan"]["blocked"].extend({"entity_id":None,"reason":reason} for reason in plan.blocked)
+    return _with_semantic(result,_workbench_diff(cfg,plan.compatibility,profile,target_profile,source_version,target_version,plan.mappings.model_dump(mode="json")))
 
 
 def _workbench_diff(cfg,cp2,source,target,source_version,target_version,mappings):

@@ -14,9 +14,11 @@ from app.core.graph import GraphScope, GraphSummary, serialize_graph, resolve_no
 from app.core.parsing import detect_vendor, parse_config
 from app.persistence.repositories import create_project
 from app.persistence.repositories.projects import get_project
-from app.core.migration import MigrationMappings, MigrationPlanner, build_plan_artifact, build_report, default_mappings, migration_pair, serialize_plan_artifact
+from app.core.migration import MigrationMappings, MigrationPlanner, build_plan_artifact, build_report, default_mappings, interface_mapping_contract, migration_pair, required_source_interfaces, serialize_plan_artifact, validate_interface_mappings
 from app.core.renderers import PaloAltoRenderer
 from app.core.renderers.registry import lookup_renderer
+from app.core.migration.models import InterfaceMapping
+from app.core.hardware import port_capability
 from app.core.migration.validation import validate_candidate
 from app.core.review import ReviewDecision,build_review,export_package,load_decisions,update_decision,validate_migration
 from app.core.versions import detect_version,resolve_context
@@ -95,6 +97,9 @@ class WorkbenchSource(BaseModel):
     platform_context:LegacyPlatformSelection|None=None
     migration_context:MigrationContext|None=None
 
+class InterfaceMappingUpdate(BaseModel):
+    mappings:list[InterfaceMapping]=Field(default_factory=list)
+
 def validate_platform_context(source:WorkbenchSource):
     if source.migration_context is None and source.platform_context is None:return
     from app.core.hardware.registry import HARDWARE_PROFILES
@@ -120,6 +125,13 @@ def validate_platform_context(source:WorkbenchSource):
         if version not in profile.supported_versions:
             raise HTTPException(422,f"CONVERSION_NOT_SUPPORTED: {side} platform is cataloged and verified but outside ConfigMorph conversion coverage.")
 
+def _workbench_mappings(source:WorkbenchSource):
+    mappings=dict(source.mappings)
+    if source.migration_context:
+        mappings["source_hardware_id"]=source.migration_context.source.hardware_id
+        mappings["target_hardware_id"]=source.migration_context.target.hardware_id
+    return mappings
+
 def _platform_context_result(source:WorkbenchSource):
     if source.migration_context is None:return None
     from app.core.hardware.registry import hardware_registry_payload
@@ -140,6 +152,20 @@ def _project_context(result:dict,source:WorkbenchSource):
         context["target"]["hardware_id"]=source.migration_context.target.hardware_id
     return context
 
+def _persist_workbench_state(root:Path,project:str,config:str,vendor:Vendor,result:dict):
+    cfg=parse_config(config,vendor)
+    if not isinstance(cfg,FirewallConfig):
+        return
+    (root/"normalized.json").write_text(cfg.model_dump_json(indent=2),encoding="utf-8")
+    target_vendor_value=result["target_profile"]["vendor"]
+    target_vendor=Vendor[target_vendor_value] if target_vendor_value in Vendor.__members__ else Vendor(target_vendor_value)
+    versions={
+        "source":resolve_context(config,vendor,result["source_profile"]["version"]).model_dump(mode="json"),
+        "target":resolve_context("",target_vendor,result["target_profile"]["version"]).model_dump(mode="json"),
+    }
+    (root/"versions.json").write_text(json.dumps(versions,indent=2),encoding="utf-8")
+    if not get_project(project):
+        create_project(project,vendor.value,target_vendor.value,str(Path(project)/"source.cfg"),len(cfg.warnings))
 def ingest_source_text(source_text:str):
     if len(source_text.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds the 100 MiB limit.")
     return source_text
@@ -158,12 +184,13 @@ def run_workbench(source:WorkbenchSource):
     target_profile=source.target_profile or ("router-huawei-vrp" if vendor==Vendor.CISCO_IOSXE else "firewall-paloalto-panos")
     target_version=source.target_version if source.target_profile else ("" if vendor==Vendor.CISCO_IOSXE else source.target_version)
     try:
-        result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings)
+        result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,_workbench_mappings(source))
         result["platform_context"]=_platform_context_result(source)
         project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"],"migration_context":source.migration_context.model_dump() if source.migration_context else None},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); base=settings.workspace_dir.resolve()
         if base not in root.parents: raise HTTPException(400,"Invalid workspace path")
         root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
         context=_project_context(result,source)
+        _persist_workbench_state(root,project,config,vendor,result)
         (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
         if result.get("candidate"):
             migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
@@ -188,7 +215,7 @@ def run_workbench_instrumented(source:WorkbenchSource,progress):
     selected=source.source_version or resolve_context(config,vendor,None).detected_family
     if not selected:raise ValueError("Source version was not verified. Select it explicitly.")
     target_profile=source.target_profile or ("router-huawei-vrp" if vendor==Vendor.CISCO_IOSXE else "firewall-paloalto-panos"); target_version=source.target_version if source.target_profile else ("" if vendor==Vendor.CISCO_IOSXE else source.target_version)
-    result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,source.mappings,progress)
+    result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,_workbench_mappings(source),progress)
     result["source_text"]=config
     result["line_accounting"]=_line_accounting(config,result["entities"])
     for stage,counts in (("CP1",{"findings":result["cp1_summary"].get("blocking_findings",0)}),("CP2",result.get("cp2_summary") or {}),("RENDERING",{"commands":sum(len(x["commands"]) for x in result["entities"])}),("SEMANTIC_DIFF",{}),("FINDINGS",{"findings":len(result["lint_findings"])})):
@@ -197,6 +224,7 @@ def run_workbench_instrumented(source:WorkbenchSource,progress):
     result["platform_context"]=_platform_context_result(source)
     project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"],"migration_context":source.migration_context.model_dump() if source.migration_context else None},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
     context=_project_context(result,source)
+    _persist_workbench_state(root,project,config,vendor,result)
     (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
     if result.get("candidate"): migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
     create_manifest(root,project,context); result["project_id"]=project; return result
@@ -275,7 +303,21 @@ async def project_import(project:UploadFile=File(...)):
                 size+=len(chunk)
                 if size>settings.max_request_bytes: raise HTTPException(413,"Project archive exceeds request limit")
                 output.write(chunk)
-        return import_project(settings.workspace_dir,temporary)
+        manifest=import_project(settings.workspace_dir,temporary)
+        imported_id=manifest["project_id"]
+        if not get_project(imported_id):
+            source_vendor_value=manifest["source"]["vendor"]
+            target_vendor_value=manifest["target"]["vendor"]
+            source_vendor=Vendor[source_vendor_value] if source_vendor_value in Vendor.__members__ else Vendor(source_vendor_value)
+            target_vendor=Vendor[target_vendor_value] if target_vendor_value in Vendor.__members__ else Vendor(target_vendor_value)
+            create_project(
+                imported_id,
+                source_vendor.value,
+                target_vendor.value,
+                str(Path(imported_id)/"source.cfg"),
+                0,
+            )
+        return manifest
     except (ValueError,zipfile.BadZipFile) as exc: raise HTTPException(422,str(exc)) from exc
     finally: temporary.unlink(missing_ok=True)
 
@@ -411,6 +453,14 @@ def _migration(project_id):
     root.mkdir(exist_ok=True)
     path=root/"mappings.json"
     mappings=MigrationMappings.model_validate_json(path.read_text(encoding="utf-8")) if path.is_file() else default_mappings(cfg)
+    project_root=settings.workspace_dir/project_id
+    manifest=load_manifest(settings.workspace_dir,project_id,refresh=False) if (project_root/"project.json").is_file() or (project_root/"evidence-context.json").is_file() else None
+    source_hardware_id=manifest["source"].get("hardware_id") if manifest else None
+    target_hardware_id=manifest["target"].get("hardware_id") if manifest else None
+    if source_hardware_id:
+        mappings.source_hardware_id=source_hardware_id
+    if target_hardware_id:
+        mappings.target_hardware_id=target_hardware_id
     return cfg,mappings,root
 
 def _versions(project_id):
@@ -450,9 +500,58 @@ def migration_mappings(project_id:str): return _migration(project_id)[1]
 
 @router.put("/projects/{project_id}/migration/mappings")
 def update_migration_mappings(project_id:str,mappings:MigrationMappings):
-    cfg,_,root=_migration(project_id); sources={x.name:x for x in cfg.interfaces}
+    cfg,current,root=_migration(project_id); sources={x.name:x for x in cfg.interfaces}
     if len({x.source_interface for x in mappings.interfaces})!=len(mappings.interfaces) or any(x.source_interface not in sources for x in mappings.interfaces): raise HTTPException(422,"Unknown or duplicate source interface")
+    mappings.source_hardware_id=current.source_hardware_id
+    mappings.target_hardware_id=current.target_hardware_id
+    if mappings.source_hardware_id and mappings.target_hardware_id and {"paloalto-pa5220","paloalto-pa5410"} & {mappings.source_hardware_id,mappings.target_hardware_id}:
+        validation=validate_interface_mappings(cfg,mappings.source_hardware_id,mappings.target_hardware_id,mappings.interfaces)
+        mappings.interfaces=validation.mappings
     atomic_write(root/"mappings.json",mappings.model_dump_json(indent=2)+"\n"); invalidate(settings.workspace_dir,project_id,"mapping"); return mappings
+
+
+def _interface_mapping_contract(project_id:str):
+    cfg,mappings,_=_migration(project_id)
+    if not mappings.source_hardware_id or not mappings.target_hardware_id:
+        raise HTTPException(409,"Project does not have source and target hardware context")
+    return interface_mapping_contract(cfg,mappings.source_hardware_id,mappings.target_hardware_id,mappings.interfaces)
+
+
+@router.get("/projects/{project_id}/migration/interface-mappings")
+def get_interface_mappings(project_id:str):
+    return _interface_mapping_contract(project_id)
+
+
+@router.put("/projects/{project_id}/migration/interface-mappings")
+def put_interface_mappings(project_id:str,update:InterfaceMappingUpdate):
+    cfg,mappings,root=_migration(project_id); sources=set(required_source_interfaces(cfg))
+    if not mappings.source_hardware_id or not mappings.target_hardware_id:
+        raise HTTPException(409,"Project does not have source and target hardware context")
+    if len({item.source_interface for item in update.mappings})!=len(update.mappings) or any(item.source_interface not in sources for item in update.mappings):
+        raise HTTPException(422,"Unknown or duplicate source interface")
+    if any(item.target_interface and not port_capability(mappings.target_hardware_id,item.target_interface) for item in update.mappings):
+        raise HTTPException(422,"Target interface is not a curated dataplane port")
+    validation=validate_interface_mappings(cfg,mappings.source_hardware_id,mappings.target_hardware_id,update.mappings)
+    mappings.interfaces=validation.mappings
+    atomic_write(root/"mappings.json",mappings.model_dump_json(indent=2)+"\n")
+    invalidate(settings.workspace_dir,project_id,"mapping")
+    return interface_mapping_contract(cfg,mappings.source_hardware_id,mappings.target_hardware_id,mappings.interfaces)
+
+
+@router.delete("/projects/{project_id}/migration/interface-mappings")
+def reset_interface_mappings(project_id:str):
+    cfg,mappings,root=_migration(project_id)
+    if not mappings.source_hardware_id or not mappings.target_hardware_id:
+        raise HTTPException(409,"Project does not have source and target hardware context")
+    mappings.interfaces=[]
+    atomic_write(root/"mappings.json",mappings.model_dump_json(indent=2)+"\n")
+    invalidate(settings.workspace_dir,project_id,"mapping")
+    return interface_mapping_contract(cfg,mappings.source_hardware_id,mappings.target_hardware_id,mappings.interfaces)
+
+
+@router.post("/projects/{project_id}/migration/interface-mappings/validate")
+def validate_project_interface_mappings(project_id:str):
+    return _interface_mapping_contract(project_id)
 
 def _plan(project_id):
     cfg,mappings,root=_migration(project_id); source_version,target_version=_versions(project_id); plan=MigrationPlanner().plan(cfg,mappings,source_version,target_version,ReferenceIntegrityValidator().validate(cfg))

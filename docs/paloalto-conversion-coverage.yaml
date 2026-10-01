@@ -44,6 +44,12 @@ capabilities:
     render: supported
     limitations: [missing VLAN and unsupported child settings require manual review]
     evidence: [PANOS-11.1-LAYER3-INTERFACES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
+  hardware_interface_mapping_pa5220_to_pa5410:
+    parse: supported
+    analyze: manual mapping plus documented port-capability validation
+    render: supported only after every required mapping passes
+    limitations: [PA-5220 to PA-5410 only; no automatic target selection, installed-optic claim, AE/LAG automation, or breakout configuration]
+    evidence: [PA-5220-DATAPLANE-PORTS, PA-5410-DATAPLANE-PORTS, PANOS-11.1-LAYER3-INTERFACES, PANOS-11.1-CONFIGURE-CLI-HIERARCHY]
   zone_layer3:
     parse: supported
     analyze: interface reference validation
@@ -94,9 +100,12 @@ unsupported_scopes:
   - dynamic address groups
   - security profile settings
   - non-Ethernet or non-Layer3 interfaces
+  - automatic interface mapping, AE/LAG member migration, breakout configuration, and installed-optic validation
   - IPv6
   - advanced routing engine and non-IP static-route next hops
   - NAT64, DNS rewrite, static-IP source NAT, bidirectional NAT, DIPP fallback, and destination port translation
 
 tests:
   - tests/test_paloalto_migration_pipeline.py
+  - tests/test_paloalto_port_capabilities.py
+  - tests/test_interface_mapping.py

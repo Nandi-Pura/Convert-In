@@ -7,7 +7,7 @@ from app.core.graph import DependencyGraphBuilder
 from app.core.models import FirewallConfig, Vendor
 from app.core.versions import exact_profile
 
-from .models import CompatibilityStatus, MigrationMappings, MigrationPlan, NameMapping
+from .models import CompatibilityStatus, InterfaceMappingValidation, MigrationMappings, MigrationPlan, NameMapping
 
 SCHEMA = "convert-in.migration-plan/v1"
 
@@ -64,6 +64,7 @@ class MigrationPlanArtifact(BaseModel):
     source: PlanVersionContext
     target: PlanVersionContext
     context: MigrationMappings
+    interface_mapping: InterfaceMappingValidation | None = None
     summary: PlanSummary
     mappings: list[NameMapping]
     entities: list[EntityPlanRecord]
@@ -143,9 +144,9 @@ def build_plan_artifact(plan: MigrationPlan, cfg: FirewallConfig | None = None) 
     semantic = {
         "schema": SCHEMA, "source": _version(plan.source_vendor, plan.source_version),
         "target": _version(plan.target_vendor, plan.target_version), "context": plan.mappings,
-        "summary": summary, "mappings": sorted(plan.names, key=lambda x: (x.entity_id, x.source_name)),
+        "interface_mapping": plan.interface_mapping, "summary": summary, "mappings": sorted(plan.names, key=lambda x: (x.entity_id, x.source_name)),
         "entities": records, "blocked": blocked, "advisories": sorted(plan.advisories),
-        "documentation_refs": sorted({ref for item in records for ref in item.documentation_refs}),
+        "documentation_refs": sorted({ref for item in records for ref in item.documentation_refs} | set(plan.interface_mapping.evidence_refs if plan.interface_mapping else [])),
     }
     plan_id = "sha256:" + hashlib.sha256(canonical_json(semantic).encode("utf-8")).hexdigest()
     return MigrationPlanArtifact(plan_id=plan_id, **semantic)

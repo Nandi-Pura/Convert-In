@@ -116,5 +116,29 @@
     "official_url": "https://docs.paloaltonetworks.com/hardware/pa-5400-hardware-reference/pa-5400-series-firewall-overview",
     "verified_at": "2026-09-30",
     "notes": "Model-specific floors differ for PA-5410/20/30, PA-5440, PA-5445, and PA-5450."
+  },
+  {
+    "id": "PA-5220-DATAPLANE-PORTS",
+    "vendor": "paloalto",
+    "product": "PA-5220",
+    "version_family": "hardware",
+    "document_type": "CONFIGURATION_GUIDE",
+    "title": "PA-5200 Front Panel",
+    "topic": "PA-5220 dataplane port ranges, connector classes, and documented speeds",
+    "official_url": "https://docs.paloaltonetworks.com/hardware/pa-5200-hardware-reference/pa-5200-series-firewall-overview/pa-5200-front-panel",
+    "verified_at": "2026-10-01",
+    "notes": "Ports 1-4 are RJ45 100M/1G/10G; 5-20 are SFP/SFP+ 1G/10G; PA-5220 ports 21-24 are QSFP+ 40G. Special HA, HSCI, AUX, console, and management ports are excluded."
+  },
+  {
+    "id": "PA-5410-DATAPLANE-PORTS",
+    "vendor": "paloalto",
+    "product": "PA-5410",
+    "version_family": "hardware",
+    "document_type": "CONFIGURATION_GUIDE",
+    "title": "PA-5400 Series Front Panel",
+    "topic": "PA-5410 dataplane port ranges, connector classes, speeds, and breakout identities",
+    "official_url": "https://docs.paloaltonetworks.com/hardware/pa-5400-hardware-reference/pa-5400-series-firewall-overview/pa-5400-series-front-and-back-panel-descriptions/pa-5400-series-front-panel",
+    "verified_at": "2026-10-01",
+    "notes": "Ports 1-8 are RJ45 through 10G; 9-20 are SFP/SFP+ 1G/10G; 21-24 are SFP28 1G/10G/25G; 25-40 are breakout identities from QSFP28 parents 41-44; 41-44 are 40G/100G. Breakout configuration is not automated."
   }
 ]

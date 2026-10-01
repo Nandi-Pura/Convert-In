@@ -186,3 +186,118 @@ def test_paloalto_api_pipeline_returns_candidate_plan_diff_and_evidence():
     assert semantic.json()["entities"]
     extraction=client.get(f"/api/projects/{project}/extraction").json()
     assert extraction["semantic_total"]==extraction["normalized"]+extraction["recovered"]+extraction["unparsed"]+extraction["unsupported"]
+
+def test_parser_normalizes_explicit_link_speed_without_guessing_auto_or_unknown_values():
+    explicit = parse_config(PANOS.replace('<entry name="ethernet1/1">', '<entry name="ethernet1/1"><link-speed>1000</link-speed>', 1), Vendor.PALO_ALTO)
+    assert explicit.interfaces[0].configured_speed == "1G"
+
+    automatic = parse_config(PANOS.replace('<entry name="ethernet1/1">', '<entry name="ethernet1/1"><link-speed>auto</link-speed>', 1), Vendor.PALO_ALTO)
+    assert automatic.interfaces[0].configured_speed is None
+
+    unknown = parse_config(PANOS.replace('<entry name="ethernet1/1">', '<entry name="ethernet1/1"><link-speed>unexpected</link-speed>', 1), Vendor.PALO_ALTO)
+    assert unknown.interfaces[0].vendor_extensions["unverified_link_speed"] == "unexpected"
+    assert any("link speed" in item.reason.lower() for item in unknown.unparsed_constructs)
+
+def test_hardware_mapping_api_persists_manual_pa5220_to_pa5410_decision_and_gates_rendering():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    source = PANOS.replace("ethernet1/1", "ethernet1/2").replace('<tag><member>production</member></tag>', '')
+    endpoint = lambda hardware_id: {
+        "vendor": "PALO_ALTO",
+        "hardware_id": hardware_id,
+        "profile_id": "firewall-paloalto-panos",
+        "os_version": "11.1",
+    }
+    response = client.post("/api/workbench/run", json={
+        "source_text": source,
+        "source_vendor": "paloalto",
+        "source_version": "11.1",
+        "target_vendor": "paloalto",
+        "target_version": "11.1",
+        "source_profile": "firewall-paloalto-panos",
+        "target_profile": "firewall-paloalto-panos",
+        "migration_context": {
+            "domain": "FIREWALL",
+            "source": endpoint("paloalto-pa5220"),
+            "target": endpoint("paloalto-pa5410"),
+        },
+    })
+    assert response.status_code == 200, response.text
+    initial = response.json()
+    assert initial["candidate"] is None
+    assert not initial["interface_mapping"]["valid_for_conversion"]
+    project = initial["project_id"]
+    base = f"/api/projects/{project}/migration"
+
+    contract = client.get(base + "/interface-mappings")
+    assert contract.status_code == 200
+    body = contract.json()
+    assert body["summary"] == {
+        "required": 1, "mapped": 0, "exact": 0, "compatible": 0,
+        "unmapped": 1, "incompatible": 0, "unverified": 0,
+    }
+    assert len(body["interfaces"][0]["target_candidates"]) == 44
+    assert all(not item.get("selected", False) for item in body["interfaces"][0]["target_candidates"])
+    unknown = client.put(base + "/interface-mappings", json={"mappings": [{
+        "source_interface": "ethernet1/2", "target_interface": "ethernet1/999", "confirmed_by_user": True,
+    }]})
+    assert unknown.status_code == 422
+
+    saved = client.put(base + "/interface-mappings", json={"mappings": [{
+        "source_hardware_id": "paloalto-pa5220",
+        "source_interface": "ethernet1/2",
+        "target_hardware_id": "paloalto-pa5410",
+        "target_interface": "ethernet1/6",
+        "confirmed_by_user": True,
+    }]})
+    assert saved.status_code == 200
+    assert saved.json()["valid_for_conversion"]
+    validated = client.post(base + "/interface-mappings/validate")
+    assert validated.status_code == 200 and validated.json()["valid_for_conversion"]
+    reloaded = client.get(base + "/interface-mappings").json()
+    assert reloaded["interfaces"][0]["mapping"]["target_interface"] == "ethernet1/6"
+    assert reloaded["interfaces"][0]["mapping"]["status"] == "COMPATIBLE"
+
+
+    mappings = client.get(base + "/mappings").json()
+    mappings["security_rule_placement"] = {"mode": "BOTTOM"}
+    mappings["nat_rule_placement"] = {"mode": "BOTTOM"}
+    assert client.put(base + "/mappings", json=mappings).status_code == 200
+
+    plan = client.post(base + "/plan")
+    rendered = client.post(base + "/render")
+    semantic = client.post(base + "/semantic-diff")
+    assert plan.status_code == rendered.status_code == semantic.status_code == 200
+    assert plan.json()["interface_mapping"]["valid_for_conversion"]
+    candidate = rendered.json()["candidate"]
+    assert "network interface ethernet ethernet1/6 layer3" in candidate
+    assert "ethernet1/6.100" in candidate
+    assert "static-route default-route interface ethernet1/6" in candidate
+    evidence = client.post(base + "/evidence-pack")
+    assert evidence.status_code == 200, evidence.text
+    assert next(item for item in evidence.json()["artifacts"] if item["name"] == "mappings")["status"] == "PRESENT"
+    exported = client.get(f"/api/projects/{project}/export")
+    assert exported.status_code == 200
+    imported = client.post(
+        "/api/projects/import",
+        files={"project": ("mapping.configmorph.zip", exported.content, "application/zip")},
+    )
+    assert imported.status_code == 200, imported.text
+    imported_project = imported.json()["project_id"]
+    imported_mapping = client.get(f"/api/projects/{imported_project}/migration/interface-mappings")
+    assert imported_mapping.status_code == 200, imported_mapping.text
+    assert imported_mapping.json()["interfaces"][0]["mapping"]["target_interface"] == "ethernet1/6"
+    assert imported_mapping.json()["interfaces"][0]["mapping"]["confirmed_by_user"] is True
+    identities = {item["source_identity"]: item["target_identity"] for item in semantic.json()["entities"]}
+    assert identities["ethernet1/2"] == "ethernet1/6"
+    assert identities["ethernet1/2.100"] == "ethernet1/6.100"
+
+    reset = client.delete(base + "/interface-mappings")
+    assert reset.status_code == 200
+    assert not reset.json()["valid_for_conversion"]
+    blocked = client.post(base + "/render")
+    assert blocked.status_code == 200
+    assert blocked.json()["status"] == "BLOCKED"
+    assert blocked.json()["candidate"] == ""

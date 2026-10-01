@@ -6,10 +6,10 @@ SEMANTIC_FIELDS={
     "address_group":{"members":"members","description":"description","tags":"tags"},
     "service":{"protocol":"protocol","source_ports":"source_ports","destination_ports":"ports","description":"description","tags":"tags"},
     "service_group":{"members":"members","description":"description","tags":"tags"},
-    "interface":{"type":"type","ipv4":"ipv4","enabled":"enabled","vlan":"vlan","parent":"parent","virtual_router":"virtual_router","description":"description"},
+    "interface":{"type":"type","ipv4":"ipv4","enabled":"enabled","vlan":"vlan","parent":"parent","virtual_router":"virtual_router","configured_speed":"configured_speed","description":"description"},
     "zone":{"interfaces":"interfaces"},
-    "security_policy":{"source_zones":"from","destination_zones":"to","sources":"source","destinations":"destination","services":"service","applications":"application","action":"action","enabled":"enabled","log_start":"log_start","log_end":"log_end","position":"position","description":"description","tags":"tags"},
-    "nat_policy":{"source_zones":"from","destination_zones":"to","original_source":"source","original_destination":"destination","original_service":"service","type":"type","translated_source":"translated_source","translated_destination":"translated_destination","translated_service":"translated_service","translated_port":"translated_port","translation_target":"translation_target","enabled":"enabled","description":"description","tags":"tags","position":"position"},
+    "security_policy":{"ingress_interfaces":"ingress_interfaces","egress_interfaces":"egress_interfaces","source_zones":"from","destination_zones":"to","sources":"source","destinations":"destination","services":"service","applications":"application","action":"action","enabled":"enabled","log_start":"log_start","log_end":"log_end","position":"position","description":"description","tags":"tags"},
+    "nat_policy":{"ingress_interface":"ingress_interface","egress_interface":"egress_interface","source_zones":"from","destination_zones":"to","original_source":"source","original_destination":"destination","original_service":"service","type":"type","translated_source":"translated_source","translated_destination":"translated_destination","translated_service":"translated_service","translated_port":"translated_port","translation_target":"translation_target","enabled":"enabled","description":"description","tags":"tags","position":"position"},
     "route":{"destination":"destination","next_hop":"next_hop","interface":"interface","metric":"metric","distance":"distance","enabled":"enabled","virtual_router":"virtual_router"},
 }
 

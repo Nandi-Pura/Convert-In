@@ -103,7 +103,7 @@ def build_semantic_diff(cfg, cp2, source, target, *, project_id=None, mappings=N
     output = []
     for decision in cp2:
         entity = entities[decision.entity_id]; source_values = decision.source_semantic or _properties(entity); target_values = decision.target_semantic or {}
-        target_name = next((x.get("target_identity") or x.get("target_interface") for x in (mappings or {}).get("interfaces", []) if x.get("source_entity_id") == entity.id and x.get("confirmed")), None)
+        target_name = next((x.get("target_identity") or x.get("target_interface") for x in (mappings or {}).get("interfaces", []) if x.get("source_entity_id") == entity.id and x.get("confirmed")), None) or target_values.get("name")
         property_diffs = []
         for name, raw_source in sorted(_properties(entity).items()):
             source_value = _canonical_value(name, raw_source); target_value = _canonical_value(name, target_values.get(name))

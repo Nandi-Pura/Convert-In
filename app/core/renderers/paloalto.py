@@ -3,6 +3,7 @@ from app.core.migration.models import CompatibilityStatus,NatPolicyOrderingPlan,
 from app.core.migration.report import build_report
 
 _VALUE=re.compile(r"[A-Za-z0-9._:/,-]+")
+_LINK_SPEED_MBPS={"10M":"10","100M":"100","1G":"1000","2_5G":"2500","5G":"5000","10G":"10000","25G":"25000","40G":"40000","100G":"100000"}
 
 def quote(value:str):
     if any(ord(char)<32 for char in value): raise ValueError(f"unsafe PAN-OS token: {value!r}")
@@ -43,6 +44,9 @@ class PaloAltoRenderer:
                     else:
                         root=("network","interface","ethernet",n,"layer3")
                         comment_root=("network","interface","ethernet",n)
+                    if d.get("configured_speed"):
+                        if d["type"]=="subinterface" or d["configured_speed"] not in _LINK_SPEED_MBPS: raise ValueError("unverified configured link speed")
+                        emit(e,*comment_root,"link-speed",_LINK_SPEED_MBPS[d["configured_speed"]])
                     for address in d["ipv4"]: emit(e,*root,"ip",address)
                     if d.get("description"): emit(e,*comment_root,"comment",d["description"])
                     if d.get("virtual_router"): emit(e,"network","virtual-router",d["virtual_router"],"interface",n)
