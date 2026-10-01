@@ -37,11 +37,14 @@ from app.core import operations
 
 router = APIRouter(prefix="/api")
 executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix="convert")
+INTERFACE_MAPPING_PAIRS=(
+    {"source_hardware_id":"paloalto-pa5220","target_hardware_id":"paloalto-pa5410"},
+)
 
 @router.get("/platform-registry")
 def platform_registry():
     from app.core.hardware.registry import hardware_registry_payload
-    return {"domains": [{"id": "FIREWALL", "label": "Firewall"}, {"id": "SWITCH", "label": "Switching"}, {"id": "ROUTER", "label": "Routing"}], "software_profiles": profiles_payload(), **hardware_registry_payload()}
+    return {"domains": [{"id": "FIREWALL", "label": "Firewall"}, {"id": "SWITCH", "label": "Switching"}, {"id": "ROUTER", "label": "Routing"}], "software_profiles": profiles_payload(), "interface_mapping_pairs":list(INTERFACE_MAPPING_PAIRS), **hardware_registry_payload()}
 
 class LegacyPlatformSelection(BaseModel):
     domain:str
@@ -152,8 +155,14 @@ def _project_context(result:dict,source:WorkbenchSource):
         context["target"]["hardware_id"]=source.migration_context.target.hardware_id
     return context
 
-def _persist_workbench_state(root:Path,project:str,config:str,vendor:Vendor,result:dict):
-    cfg=parse_config(config,vendor)
+def _profile_result(profile,version:str):
+    return {"id":profile.id,"vendor":profile.vendor.value,"platform":profile.platform.value,"domain":profile.domain.value,"version":version,"capability":profile.target_capability.value}
+
+def _workbench_project_id(config:str,source_profile:dict,target_profile:dict,source:WorkbenchSource):
+    return str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":source_profile,"target_profile":target_profile,"migration_context":source.migration_context.model_dump() if source.migration_context else None},sort_keys=True,default=str)))
+
+def _persist_workbench_state(root:Path,project:str,config:str,vendor:Vendor,result:dict,cfg=None):
+    cfg=cfg or parse_config(config,vendor)
     if not isinstance(cfg,FirewallConfig):
         return
     (root/"normalized.json").write_text(cfg.model_dump_json(indent=2),encoding="utf-8")
@@ -169,6 +178,46 @@ def _persist_workbench_state(root:Path,project:str,config:str,vendor:Vendor,resu
 def ingest_source_text(source_text:str):
     if len(source_text.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds the 100 MiB limit.")
     return source_text
+
+@router.post("/workbench/preflight")
+def preflight_workbench(source:WorkbenchSource):
+    if source.migration_context is None:
+        raise HTTPException(422,"migration_context is required for interface mapping preflight.")
+    config=ingest_source_text(source.source_text)
+    validate_platform_context(source)
+    pair={"source_hardware_id":source.migration_context.source.hardware_id,"target_hardware_id":source.migration_context.target.hardware_id}
+    if pair not in INTERFACE_MAPPING_PAIRS:
+        raise HTTPException(422,"Interface mapping is not available for the selected hardware pair.")
+    detected=detect_vendor(config)
+    try:
+        vendor=detected.vendor if source.source_vendor=="auto" else Vendor(source.source_vendor)
+    except ValueError as exc:
+        raise HTTPException(422,"Unsupported source platform.") from exc
+    if vendor==Vendor.UNKNOWN:
+        raise HTTPException(422,"Could not detect source platform.")
+    source_profile=platform_profile(source.source_profile,source.source_version)
+    target_profile=platform_profile(source.target_profile,source.target_version)
+    if not source_profile or not source_profile.source_parser or not target_profile:
+        raise HTTPException(422,"Invalid source or target platform selection.")
+    result={"source_profile":_profile_result(source_profile,source.source_version),"target_profile":_profile_result(target_profile,source.target_version)}
+    project=_workbench_project_id(config,result["source_profile"],result["target_profile"],source)
+    root=(settings.workspace_dir/project).resolve(); base=settings.workspace_dir.resolve()
+    if base not in root.parents:
+        raise HTTPException(400,"Invalid workspace path")
+    try:
+        cfg=parse_config(config,vendor)
+        if not isinstance(cfg,FirewallConfig):
+            raise HTTPException(422,"Interface mapping preflight requires a firewall configuration.")
+        root.mkdir(parents=True,exist_ok=True)
+        (root/"source.cfg").write_text(config,encoding="utf-8")
+        context=_project_context(result,source)
+        _persist_workbench_state(root,project,config,vendor,result,cfg)
+        (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8")
+        create_manifest(root,project,context)
+        contract=_interface_mapping_contract(project)
+        return {"project_id":project,"interface_mapping_required":contract["summary"]["required"]>0,"interface_mapping":contract}
+    except ValueError as exc:
+        raise HTTPException(422,str(exc)) from exc
 
 @router.post("/workbench/run")
 def run_workbench(source:WorkbenchSource):
@@ -186,7 +235,7 @@ def run_workbench(source:WorkbenchSource):
     try:
         result=build_workbench(config,vendor,selected,target_version,source.source_profile,target_profile,_workbench_mappings(source))
         result["platform_context"]=_platform_context_result(source)
-        project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"],"migration_context":source.migration_context.model_dump() if source.migration_context else None},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); base=settings.workspace_dir.resolve()
+        project=_workbench_project_id(config,result["source_profile"],result["target_profile"],source); root=(settings.workspace_dir/project).resolve(); base=settings.workspace_dir.resolve()
         if base not in root.parents: raise HTTPException(400,"Invalid workspace path")
         root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
         context=_project_context(result,source)
@@ -222,7 +271,7 @@ def run_workbench_instrumented(source:WorkbenchSource,progress):
         if stage=="RENDERING" and not result["renderer_available"]:continue
         progress(stage); progress(stage,"COMPLETE",counts)
     result["platform_context"]=_platform_context_result(source)
-    project=str(uuid5(NAMESPACE_URL,json.dumps({"source":config,"source_profile":result["source_profile"],"target_profile":result["target_profile"],"migration_context":source.migration_context.model_dump() if source.migration_context else None},sort_keys=True,default=str))); root=(settings.workspace_dir/project).resolve(); root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
+    project=_workbench_project_id(config,result["source_profile"],result["target_profile"],source); root=(settings.workspace_dir/project).resolve(); root.mkdir(parents=True,exist_ok=True); (root/"source.cfg").write_text(config,encoding="utf-8")
     context=_project_context(result,source)
     _persist_workbench_state(root,project,config,vendor,result)
     (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
