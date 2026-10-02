@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 from fastapi.testclient import TestClient
 
+import app.core.evidence_pack as evidence_pack
 from app.core.evidence_pack import build, canonical
 from app.main import app
 
@@ -41,6 +42,17 @@ def test_stale_and_malformed_artifacts(tmp_path):
 def test_containment(tmp_path):
     project(tmp_path)
     with pytest.raises(ValueError,match="containment"): build("../p",tmp_path)
+
+def test_publish_retries_transient_permission_error(tmp_path,monkeypatch):
+    project(tmp_path); replace=evidence_pack.os.replace; calls=0
+    def flaky_replace(source,target):
+        nonlocal calls
+        calls+=1
+        if calls==1: raise PermissionError(5,"File is temporarily locked")
+        return replace(source,target)
+    monkeypatch.setattr(evidence_pack.os,"replace",flaky_replace)
+    build("p",tmp_path)
+    assert calls==3
 
 def test_api_post_get_download_and_safe_filename(tmp_path,monkeypatch):
     from app.config import settings

@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import shutil
+import time
 import zipfile
 from pathlib import Path
 
@@ -43,6 +44,15 @@ def _counts(result,key,names):
     value=result.get(key) or {}
     if isinstance(value,list): value={name:sum(1 for item in value if item.get("severity")==name) for name in names}
     return {name:int(value.get(name,value.get(name.upper(),0)) or 0) for name in names}
+
+def _replace_with_retry(source:Path,target:Path):
+    for attempt in range(4):
+        try:
+            os.replace(source,target)
+            return
+        except PermissionError:
+            if attempt==3: raise
+            time.sleep(0.05*(attempt+1))
 
 def build(project_id:str,workspace:Path):
     base=workspace.resolve(); root=_inside(base/project_id,base)
@@ -95,13 +105,13 @@ def build(project_id:str,workspace:Path):
         checks="".join(f"{digest(p)}  {p.relative_to(temporary).as_posix()}\n" for p in files)
         (temporary/"checksums.sha256").write_text(checks,encoding="ascii",newline="\n")
         if final.exists(): shutil.rmtree(final)
-        os.replace(temporary,final)
+        _replace_with_retry(temporary,final)
         archive=root/"migration"/f"configmorph-evidence-pack-{project_id}.zip"; archive_tmp=archive.with_suffix(".tmp")
         with zipfile.ZipFile(archive_tmp,"w",zipfile.ZIP_DEFLATED,compresslevel=9) as bundle:
             for path in sorted((p for p in final.rglob("*") if p.is_file()),key=lambda p:p.relative_to(final).as_posix()):
                 info=zipfile.ZipInfo(path.relative_to(final).as_posix(),(1980,1,1,0,0,0)); info.compress_type=zipfile.ZIP_DEFLATED; info.external_attr=0o100644<<16
                 bundle.writestr(info,path.read_bytes(),compresslevel=9)
-        os.replace(archive_tmp,archive)
+        _replace_with_retry(archive_tmp,archive)
         return manifest,archive
     except Exception:
         shutil.rmtree(temporary,ignore_errors=True)

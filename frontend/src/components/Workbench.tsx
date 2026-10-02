@@ -503,6 +503,7 @@ export function Workbench(props: Props) {
             {!isDemo && result?.renderer_available && (
               <a
                 href={`/api/projects/${result.project_id}/migration/download/config`}
+                download={result.candidate_filename || "candidate-pan-os.set"}
               >
                 <Icon name="download" />
                 Download Candidate

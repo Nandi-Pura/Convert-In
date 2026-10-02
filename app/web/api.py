@@ -175,6 +175,15 @@ def _persist_workbench_state(root:Path,project:str,config:str,vendor:Vendor,resu
     (root/"versions.json").write_text(json.dumps(versions,indent=2),encoding="utf-8")
     if not get_project(project):
         create_project(project,vendor.value,target_vendor.value,str(Path(project)/"source.cfg"),len(cfg.warnings))
+
+def _persist_workbench_candidate(root:Path,result:dict):
+    migration=root/"migration"; migration.mkdir(exist_ok=True)
+    for path in migration.glob("candidate-*"): path.unlink()
+    if not result.get("candidate"): return
+    filename=result.get("candidate_filename")
+    if not isinstance(filename,str) or Path(filename).name!=filename: raise ValueError("Invalid candidate filename")
+    (migration/filename).write_text(result["candidate"],encoding="utf-8")
+
 def ingest_source_text(source_text:str):
     if len(source_text.encode("utf-8"))>settings.max_input_bytes: raise HTTPException(413,"Configuration exceeds the 100 MiB limit.")
     return source_text
@@ -241,8 +250,7 @@ def run_workbench(source:WorkbenchSource):
         context=_project_context(result,source)
         _persist_workbench_state(root,project,config,vendor,result)
         (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
-        if result.get("candidate"):
-            migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
+        _persist_workbench_candidate(root,result)
         create_manifest(root,project,context)
         result["project_id"]=project; return result
     except ValueError as exc: raise HTTPException(422,str(exc)) from exc
@@ -275,7 +283,7 @@ def run_workbench_instrumented(source:WorkbenchSource,progress):
     context=_project_context(result,source)
     _persist_workbench_state(root,project,config,vendor,result)
     (root/"evidence-context.json").write_text(json.dumps(context,sort_keys=True),encoding="utf-8"); (root/"workbench-result.json").write_text(json.dumps(result,sort_keys=True,default=str),encoding="utf-8")
-    if result.get("candidate"): migration=root/"migration"; migration.mkdir(exist_ok=True); (migration/result["candidate_filename"]).write_text(result["candidate"],encoding="utf-8")
+    _persist_workbench_candidate(root,result)
     create_manifest(root,project,context); result["project_id"]=project; return result
 
 def _line_accounting(source_text:str,entities:list[dict]):
@@ -737,8 +745,15 @@ def migration_report(project_id:str):
 @router.get("/projects/{project_id}/migration/download/config")
 def download_migration_config(project_id:str):
     _,_,root=_migration(project_id); path=root/"candidate-pan-os.set"
+    result_path=root.parent/"workbench-result.json"
+    if result_path.is_file():
+        result=json.loads(result_path.read_text(encoding="utf-8"))
+        filename=result.get("candidate_filename")
+        if not result.get("candidate") or not isinstance(filename,str) or Path(filename).name!=filename:
+            raise HTTPException(404,"Migration has not been rendered")
+        path=root/filename
     if not path.is_file(): raise HTTPException(404,"Migration has not been rendered")
-    return FileResponse(path,media_type="text/plain",filename="candidate-pan-os.set")
+    return FileResponse(path,media_type="text/plain",filename=path.name)
 
 @router.get("/projects/{project_id}/migration/download/report")
 def download_migration_report(project_id:str):

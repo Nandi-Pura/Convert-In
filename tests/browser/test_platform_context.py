@@ -183,6 +183,25 @@ def test_pa5220_to_pa5410_manual_mapping_golden_flow(page, live_server):
     candidate = page.get_by_label("Target Configuration (Palo Alto Networks)", exact=True)
     expect(candidate).to_contain_text("network interface ethernet ethernet1/6 layer3", timeout=15000)
     expect(candidate).not_to_contain_text("network interface ethernet ethernet1/2 layer3")
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.get_by_role("tab", name="Candidate Configuration", exact=True).click()
+    page.get_by_role("button", name="Copy All READY", exact=True).click()
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert "CANDIDATE CONFIGURATION" in copied
+    assert "network interface ethernet ethernet1/6 layer3" in copied
+    assert "network interface ethernet ethernet1/2 layer3" not in copied
+    download_link = page.get_by_role("link", name="Download Candidate", exact=True)
+    filename = download_link.get_attribute("download")
+    assert filename and filename.endswith(".set")
+    project_id = download_link.get_attribute("href").split("/")[3]
+    stale = Path(live_server[1]).parent / "workspace" / project_id / "migration" / "candidate-pan-os.set"
+    stale.write_text("STALE CANDIDATE\n", encoding="utf-8")
+    with page.expect_download() as download:
+        download_link.click()
+    assert download.value.suggested_filename == filename
+    downloaded = Path(download.value.path()).read_text(encoding="utf-8")
+    backend_candidate = page.request.get(f"{live_server[0]}/api/projects/{project_id}").json()["result"]["candidate"]
+    assert downloaded == backend_candidate
     page.get_by_role("tab", name="Semantic Diff", exact=True).click()
     expect(page.locator("#result-panel")).to_contain_text("ethernet1/6")
     page.get_by_role("tab", name="Migration Plan", exact=True).click()
